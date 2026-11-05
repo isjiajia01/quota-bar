@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Data source stub boundary. Polling policy is out of scope for the skeleton.
+/// Data source boundary: one fetch per call, no scheduling policy.
 protocol QuotaSource: Sendable {
     func fetch() async throws -> QuotaPayload
 }
@@ -30,19 +30,39 @@ struct FixtureQuotaSource: QuotaSource {
     }
 }
 
+/// The tunnel endpoint. No auth: `ssh -N -L 13425:127.0.0.1:3425 oracle` forwards loopback only.
 struct LiveQuotaSource: QuotaSource {
     static let endpoint = URL(string: "http://127.0.0.1:13425/v1/magpie/quotas")!
-    var timeout: TimeInterval = 5
+    /// Bound on one attempt, a stalled tunnel included.
+    static let timeout: TimeInterval = 8
+
+    var endpoint: URL = LiveQuotaSource.endpoint
+    var timeout: TimeInterval = LiveQuotaSource.timeout
+    var session: URLSession = .quotas
 
     func fetch() async throws -> QuotaPayload {
-        var request = URLRequest(url: Self.endpoint, timeoutInterval: timeout)
+        var request = URLRequest(url: endpoint, timeoutInterval: timeout)
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw QuotaSourceError.http(http.statusCode)
         }
+        // The body never reaches a log: only its decode result or the issue kind leaves here.
         do { return try QuotaPayload.decode(data) } catch { throw QuotaSourceError.malformed }
     }
+}
+
+extension URLSession {
+    /// Ephemeral session for the tunnel: no cache, no connectivity waiting, bounded attempts.
+    static let quotas: URLSession = {
+        let config = URLSessionConfiguration.ephemeral
+        config.requestCachePolicy = .reloadIgnoringLocalCacheData
+        config.urlCache = nil
+        config.waitsForConnectivity = false
+        config.timeoutIntervalForRequest = LiveQuotaSource.timeout
+        config.timeoutIntervalForResource = LiveQuotaSource.timeout * 2
+        return URLSession(configuration: config)
+    }()
 }
 
 extension TransportIssue {
@@ -58,34 +78,75 @@ extension TransportIssue {
     }
 }
 
-/// App-lifetime owner of data. One refresh at a time; a new refresh supersedes the old.
+/// App-lifetime owner of data. One fetch in flight; a new refresh supersedes the old.
+/// The loop and the immediate refresh both go through `refresh()`, so Retry/⟳ never stacks work.
 @MainActor @Observable
 final class QuotaStore {
+    /// Best effort, not an exact schedule: App Nap and timer coalescing apply.
+    static let refreshInterval: TimeInterval = 60
+
     private(set) var state: PanelState = .loading
     private(set) var isRefreshing = false
     private var lastGood: PanelSnapshot?
-    private var task: Task<Void, Never>?
+    private var attempt: Task<Void, Never>?
+    private var loop: Task<Void, Never>?
     private let source: any QuotaSource
 
     init(source: any QuotaSource) { self.source = source }
 
-    func refresh() {
-        task?.cancel()
+    /// Refreshes now, then every `interval` until `stopAutoRefresh()`. Idempotent.
+    func startAutoRefresh(interval: TimeInterval = QuotaStore.refreshInterval) {
+        guard loop == nil else { return }
+        loop = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self else { return }
+                await self.refresh().value
+                if Task.isCancelled { return }
+                try? await Task.sleep(for: .seconds(interval))
+            }
+        }
+    }
+
+    func stopAutoRefresh() {
+        loop?.cancel()
+        loop = nil
+    }
+
+    @discardableResult
+    func refresh() -> Task<Void, Never> {
+        attempt?.cancel()
         isRefreshing = true
-        task = Task { [source] in
+        let task = Task { [source] in
             do {
                 let payload = try await source.fetch()
                 try Task.checkCancellation()
-                let snap = PanelSnapshot(accounts: payload.data, fetchedAt: .now)
-                lastGood = snap
-                state = payload.data.isEmpty ? .empty(fetchedAt: snap.fetchedAt) : .content(snap)
-            } catch is CancellationError {
-                return
+                apply(payload)
             } catch {
-                let issue = TransportIssue(error)
-                state = lastGood.map { .stale($0, issue) } ?? .error(issue)
+                // URLSession reports its own cancellation as `URLError(.cancelled)`, so the
+                // task flag — not the error type — decides whether this attempt still counts.
+                if Task.isCancelled { return }  // superseded; the newer attempt owns `isRefreshing`
+                fail(TransportIssue(error))
             }
             isRefreshing = false
         }
+        attempt = task
+        return task
+    }
+
+    private func apply(_ payload: QuotaPayload) {
+        let snapshot = PanelSnapshot(accounts: payload.data, fetchedAt: .now)
+        guard !payload.data.isEmpty else {
+            // An empty answer keeps the empty page: there is no list to retain, so a later
+            // failure reports the connection, not a blank stale panel.
+            lastGood = nil
+            state = .empty(fetchedAt: snapshot.fetchedAt)
+            return
+        }
+        lastGood = snapshot
+        state = .content(snapshot)
+    }
+
+    private func fail(_ issue: TransportIssue) {
+        state = lastGood.map { .stale($0, issue) } ?? .error(issue)
     }
 }
