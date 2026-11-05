@@ -6,6 +6,10 @@ import SwiftUI
 struct QuotaBarApp: App {
     @State private var store: QuotaStore
     @AppStorage("hideEmails") private var hideEmails = false
+    /// One action for both entry points: the panel footer and ⌘⇧M (App/GlobalHotKey.swift).
+    private let openMagpie: OpenMagpieAction
+    /// Held for the process: the Carbon handler keeps only an unretained pointer to it.
+    private let hotKey: GlobalHotKey
 
     init() {
         let useFixture = CommandLine.arguments.contains("--fixture")
@@ -13,6 +17,14 @@ struct QuotaBarApp: App {
         let store = QuotaStore(source: useFixture ? FixtureQuotaSource() : LiveQuotaSource())
         store.startAutoRefresh()  // immediate fetch, then every 60 s; Retry/⟳ refresh on demand
         _store = State(initialValue: store)
+
+        let openMagpie = OpenMagpieAction()
+        self.openMagpie = openMagpie
+        // Carbon hot key: no Accessibility permission. Registration failure is logged once
+        // inside `register()` and the app continues without the shortcut.
+        let hotKey = GlobalHotKey(action: { openMagpie() })
+        hotKey.register()
+        self.hotKey = hotKey
     }
 
     var body: some Scene {
@@ -23,7 +35,10 @@ struct QuotaBarApp: App {
                 hideEmails: hideEmails,
                 actions: PanelActions(
                     refresh: { store.refresh() },
-                    openMagpie: { /* No gateway URL is specified in DESIGN.md, so this stays a no-op. */ },
+                    // No public dismiss exists for a MenuBarExtra panel, so the panel is not
+                    // closed here: activating Safari deactivates QuotaBar and the system drops
+                    // the transient panel (PLATFORM_CONSTRAINTS › focus and dismissal).
+                    openMagpie: { openMagpie() },
                     setHideEmails: { hideEmails = $0 },
                     quit: { NSApplication.shared.terminate(nil) }
                 )
