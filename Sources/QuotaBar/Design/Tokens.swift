@@ -23,7 +23,7 @@ enum Radius {
 
 /// Fixed component metrics. Panel width/scroll cap are app choices, not OS limits.
 enum Metric {
-    static let panelWidth: CGFloat = 340
+    static let panelWidth: CGFloat = 360
     /// Max height of the scrolling provider list. Header + footer add ~76 pt.
     static let scrollCap: CGFloat = 460
     static let ring: CGFloat = 28
@@ -32,8 +32,9 @@ enum Metric {
     static let barWidth: CGFloat = 44
     static let barHeight: CGFloat = 4
     static let valueColumn: CGFloat = 36
-    static let windowColumn: CGFloat = 48
-    /// Max width of the provider header value + window chips column.
+    /// Row window label column; long labels wrap (never ellipsized).
+    static let windowColumn: CGFloat = 64
+    /// Max width of the header window-chip row; wider pairs stack (RowOrStack).
     static let heroColumn: CGFloat = 150
     static let rowHeight: CGFloat = 22
     static let dot: CGFloat = 6

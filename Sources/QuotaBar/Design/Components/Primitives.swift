@@ -80,6 +80,8 @@ struct Chip<Label: View>: View {
             .padding(.horizontal, Space.xs)
             .padding(.vertical, Space.hair)
             .background(RoundedRectangle(cornerRadius: Radius.chip).fill(Palette.chipFill))
+            // Chips never ellipsize: the surrounding layout wraps or reflows instead.
+            .fixedSize()
     }
 }
 
@@ -93,12 +95,71 @@ struct WindowChip: View {
     var body: some View {
         Chip {
             HStack(spacing: Space.xxs) {
-                Text(window.short).truncationMode(.tail)
-                Text(Presenter.percent(window.remaining)).fixedSize()
+                Text(window.short)
+                Text(Presenter.percent(window.remaining))
                     .foregroundStyle(window.level == .healthy ? Palette.textPrimary : window.level.text)
             }
         }
         .accessibilityElement(children: .combine)
+        .help("\(window.name): \(Presenter.percent(window.remaining))% left")
+    }
+}
+
+/// One row when every child fits at its ideal width within the offered width (and `maxRow`,
+/// if set); otherwise one child per line, aligned leading or trailing. Used so chips and
+/// secondary labels move to a second line instead of truncating.
+struct RowOrStack: Layout {
+    var alignment: HorizontalAlignment = .leading
+    var spacing: CGFloat = Space.xs
+    var maxRow: CGFloat? = nil
+
+    /// Empty children (e.g. a badge stack with no badges) take no space or gap.
+    private func visible(_ subviews: Subviews) -> [LayoutSubview] {
+        subviews.filter { $0.sizeThatFits(.unspecified).width > 0 }
+    }
+
+    private func rowWidth(_ ideal: [CGSize]) -> CGFloat {
+        ideal.map(\.width).reduce(0, +) + spacing * CGFloat(max(0, ideal.count - 1))
+    }
+
+    private func fitsRow(_ ideal: [CGSize], width: CGFloat?) -> Bool {
+        rowWidth(ideal) <= min(width ?? .infinity, maxRow ?? .infinity)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let views = visible(subviews)
+        let ideal = views.map { $0.sizeThatFits(.unspecified) }
+        if fitsRow(ideal, width: proposal.width) {
+            return CGSize(width: rowWidth(ideal), height: ideal.map(\.height).max() ?? 0)
+        }
+        let sizes = views.map { $0.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil)) }
+        return CGSize(width: sizes.map(\.width).max() ?? 0,
+                      height: sizes.map(\.height).reduce(0, +) + Space.xxs * CGFloat(max(0, sizes.count - 1)))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        for view in subviews where view.sizeThatFits(.unspecified).width <= 0 {
+            view.place(at: bounds.origin, proposal: .zero)
+        }
+        let views = visible(subviews)
+        let ideal = views.map { $0.sizeThatFits(.unspecified) }
+        if fitsRow(ideal, width: bounds.width) {
+            let rowHeight = ideal.map(\.height).max() ?? 0
+            var x = alignment == .trailing ? bounds.maxX - rowWidth(ideal) : bounds.minX
+            for (view, size) in zip(views, ideal) {
+                view.place(at: CGPoint(x: x, y: bounds.minY + (rowHeight - size.height) / 2),
+                           proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            return
+        }
+        var y = bounds.minY
+        for view in views {
+            let size = view.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            let x = alignment == .trailing ? bounds.maxX - size.width : bounds.minX
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: bounds.width, height: size.height))
+            y += size.height + Space.xxs
+        }
     }
 }
 

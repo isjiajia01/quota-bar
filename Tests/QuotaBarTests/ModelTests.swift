@@ -94,6 +94,21 @@ import Testing
         #expect(Presenter.percent(nil) == "—")
         #expect(Presenter.shortWindowName("Gemini · 7 days") == "Gemini 7d")
     }
+
+    /// DESIGN.md › Text fitting: window abbreviation rule.
+    @Test func windowAbbreviationRule() {
+        #expect(Presenter.shortWindowName("5 hours") == "5h")
+        #expect(Presenter.shortWindowName("1 day") == "1d")
+        #expect(Presenter.shortWindowName("30 minutes") == "30m")
+        #expect(Presenter.shortWindowName("Claude & GPT · 5 hours") == "Claude & GPT 5h")
+        #expect(Presenter.shortWindowName("Claude Opus 4.6 (Thinking)") == "Claude Opus 4.6")
+        #expect(Presenter.shortWindowName("Extra credits") == "Extra")
+        #expect(Presenter.shortWindowName("Total credits") == "Total")
+        #expect(Presenter.shortWindowName("Free model tokens") == "Free model")
+        #expect(Presenter.shortWindowName("Credits") == "Credits")
+        #expect(Presenter.shortWindowName("Month") == "Month")
+        #expect(Presenter.shortWindowName("(Thinking)") == "(Thinking)")
+    }
 }
 
 @Suite struct TokenLintTests {

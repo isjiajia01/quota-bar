@@ -19,7 +19,7 @@ Status: **frozen**. New tokens or components only through designer `extend`.
 |---|---|
 | Space | hair 1 · xxs 2 · xs 4 · s 8 · m 12 · l 16 |
 | Radius | bar 2 · skeleton 3 · chip 4 · page 10 (state-page frame only) |
-| Metric | panelWidth 340 · scrollCap 460 (panel ≈ 546 pt max) · ring 28 / stroke 3.5 · bar 44×4 · valueColumn 36 · windowColumn 48 · heroColumn 150 · rowHeight 22 · iconButton 22 · dot 6 |
+| Metric | panelWidth 360 · scrollCap 460 (panel ≈ 546 pt max) · ring 28 / stroke 3.5 · bar 44×4 · valueColumn 36 (min) · windowColumn 64 (wraps) · heroColumn 150 (max chip row) · rowHeight 22 (min) · iconButton 22 · dot 6 |
 | TypeRole | title=headline · status=caption · provider=body semibold · heroValue=title3 semibold mono · meta=subheadline · row=callout · rowValue=callout medium mono · chip=caption mono · stateTitle · stateIcon=title2 |
 | Palette | textPrimary/Secondary/Tertiary, track, chipFill, separator, skeleton (all semantic `NSColor`) · healthy=systemTeal · low=systemOrange · critical=systemRed · lowText light #935800 / dark #FF9F0A · criticalText light #C0222F / dark #FF6B60 |
 | Motion | `disclosure` snappy 0.18 s · `value` easeOut 0.25 s. Both become nil under Reduce Motion. No continuous animation. |
@@ -64,7 +64,7 @@ Per-account errors live inside `content`/`stale`. They are never transport failu
 | hiddenEmails | content with "Account N" labels | Updated HH:mm |
 
 ## Components (lookup order: component → template → primitive)
-- **QuotaPanel** (template): header · hairline · body (`BoundedScroll`) · hairline · footer. Fixed 340 pt width.
+- **QuotaPanel** (template): header · hairline · body (`BoundedScroll`) · hairline · footer. Fixed 360 pt width.
 - **PanelHeader**: "Quota left", `StatusLine`, ↻ (Refresh, or Retry when stale/error; dimmed while refreshing), ⋯ Menu (Hide emails, Quit ⌘Q).
 - **StatusLine**: states as in the table above. "· refreshing…" is appended while refreshing.
 - **ProviderSection** = **ProviderHeader** (ring · name · plan chip · "Most left · label" · hero % · ≤2 `WindowChip`s,
@@ -73,9 +73,22 @@ Per-account errors live inside `content`/`stale`. They are never transport failu
 - **AccountRow**: usable `label [badges] ▬bar %value window` · nearly-empty (same row, red value) ·
   error (⚠ label + 2-line note) · noQuota (tertiary "No quota reported"). The tooltip lists every window.
 - **NearlyEmptyGroup**: ▸ chevron · red dot · "N nearly empty" · range. Expanded rows hang off a 1 pt guide, indented 12 pt.
-- **AccountBadges**: plan chip (only when it differs from the provider plan; truncates first) · ⌛ until · ↺N · clock (old read).
-- Primitives: **QuotaRing** (dashed when unknown) · **UsageBar** · **Chip** · **WindowChip** · **Hairline** · **IconButton** ·
+- **AccountBadges**: plan chip (only when it differs from the provider plan) · ⌛ until · ↺N · clock (old read).
+- Primitives: **QuotaRing** (dashed when unknown) · **UsageBar** · **Chip** (fixed size) · **WindowChip** · **RowOrStack** · **Hairline** · **IconButton** ·
   **StateMessage** · **LoadingPlaceholder** · **BoundedScroll** · **PanelFooter** ("Open Magpie ⌘⇧M").
+
+## Text fitting (extend 2026-11-05)
+Only **account identifiers** ellipsize (middle; full value is the first line of the row tooltip and the header `.help`).
+Everything else stays whole:
+- **Chips and numbers never truncate.** `Chip` is fixed-size; hero and row values are fixed-size (valueColumn is a minimum).
+- **RowOrStack** (layout primitive): children sit in one row when all fit at ideal width (and ≤ `maxRow`), otherwise one per
+  line. Provider name + plan chip → plan drops below; row label + badges → badges drop below; the two header window chips stack
+  right-aligned when wider than heroColumn. The stat column is never compressed; the left column yields.
+- **Wrap, don't cut:** provider names, header/row error notes (no line cap), status line and row window labels wrap.
+- **Window abbreviation rule** (`Presenter.shortWindowName`, chips and rows): `" · "`→space · `N minutes/hours/days/weeks`→`Nm/Nh/Nd/Nw` ·
+  drop a trailing `(…)` · drop a trailing `credits`/`tokens` after a qualifier (`Extra credits`→`Extra`; bare `Credits` stays).
+  Tooltips show the full window name. Plan text only drops a leading provider name (`stripProvider`).
+- Width 360 (was 340): +16 for the wrapping window column, +4 for labels. Review `stress-*.png` (synthetic long text).
 
 ## Height strategy
 The body is a `ScrollView` sized to its measured content (`onGeometryChange`) and capped at `Metric.scrollCap`.

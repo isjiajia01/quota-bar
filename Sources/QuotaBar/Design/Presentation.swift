@@ -158,10 +158,21 @@ enum Presenter {
             .replacing(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/, with: "This account")
     }
 
+    /// Window abbreviation rule (DESIGN.md › Text fitting). Applied in this order:
+    /// 1. pool separator " · " → space  2. "N minutes/hours/days/weeks" → "Nm/Nh/Nd/Nw"
+    /// 3. drop a trailing parenthetical ("(Thinking)")  4. drop a trailing unit word
+    ///    ("credits"/"tokens") when a qualifier precedes it ("Extra credits" → "Extra").
+    /// Never cuts characters; the full name stays in the row tooltip.
     static func shortWindowName(_ name: String) -> String {
-        name.replacing(" · ", with: " ")
+        var s = name.replacing(" · ", with: " ")
+            .replacing(/(\d+) minutes?/) { "\($0.output.1)m" }
             .replacing(/(\d+) hours?/) { "\($0.output.1)h" }
             .replacing(/(\d+) days?/) { "\($0.output.1)d" }
+            .replacing(/(\d+) weeks?/) { "\($0.output.1)w" }
+            .replacing(/\s*\([^()]*\)\s*$/, with: "")
+        s = s.replacing(/^(.+\S)\s+(?i:credits?|tokens?)$/) { String($0.output.1) }
+        let trimmed = s.trimmingCharacters(in: .whitespaces)
+        return trimmed.isEmpty ? name : trimmed
     }
 
     /// Two lowest windows of the hero, in their original order.

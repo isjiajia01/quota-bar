@@ -8,27 +8,32 @@ struct ProviderHeader: View {
         HStack(alignment: .center, spacing: Space.s) {
             QuotaRing(remaining: provider.hero?.binding?.remaining)
             VStack(alignment: .leading, spacing: Space.hair) {
-                HStack(spacing: Space.xs) {
+                // Provider name wraps rather than truncates; the plan chip drops to its own line
+                // when name + chip do not fit beside the stat column.
+                RowOrStack {
                     Text(provider.name)
                         .font(TypeRole.provider)
                         .foregroundStyle(Palette.textPrimary)
-                        .lineLimit(1)
-                        .layoutPriority(2)
+                        .fixedSize(horizontal: false, vertical: true)
                     if let plan = provider.plan { Chip(plan) }
                 }
                 subtitle
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             if let hero = provider.hero {
+                // Stat column: never compressed. Two window chips sit side by side up to
+                // Metric.heroColumn, otherwise they stack (right-aligned).
                 VStack(alignment: .trailing, spacing: Space.hair) {
                     Text("\(Presenter.percent(hero.binding?.remaining))%")
                         .font(TypeRole.heroValue)
                         .foregroundStyle(QuotaLevel(remaining: hero.binding?.remaining).text)
-                    HStack(spacing: Space.xs) {
+                        .fixedSize()
+                    RowOrStack(alignment: .trailing, maxRow: Metric.heroColumn) {
                         ForEach(provider.chips) { WindowChip(window: $0) }
                     }
+                    .fixedSize()
                 }
-                .frame(maxWidth: Metric.heroColumn, alignment: .trailing)
+                .layoutPriority(1)
             }
         }
         .accessibilityElement(children: .combine)
@@ -51,8 +56,8 @@ struct ProviderHeader: View {
             Text(note)
                 .font(TypeRole.meta)
                 .foregroundStyle(Palette.textSecondary)
-                .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .help(note)
         }
     }
 }

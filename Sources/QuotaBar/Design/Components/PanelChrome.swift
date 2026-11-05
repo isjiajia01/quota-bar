@@ -67,7 +67,7 @@ struct StatusLine: View {
         }
         .font(TypeRole.status)
         .foregroundStyle(Palette.textSecondary)
-        .lineLimit(1)
+        .fixedSize(horizontal: false, vertical: true)
         .help(help)
     }
 

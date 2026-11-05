@@ -26,14 +26,16 @@ struct AccountRow: View {
             Text("\(Presenter.percent(account.binding?.remaining))%")
                 .font(TypeRole.rowValue)
                 .foregroundStyle(QuotaLevel(remaining: account.binding?.remaining).text)
-                .frame(width: Metric.valueColumn, alignment: .trailing)
+                .fixedSize()
+                .frame(minWidth: Metric.valueColumn, alignment: .trailing)
+            // Window label: abbreviated by rule, then wraps (never ellipsized).
             Text(account.binding?.short ?? "")
                 .font(TypeRole.meta)
                 .foregroundStyle(Palette.textSecondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(width: Metric.windowColumn, alignment: .leading)
         }
+        .padding(.vertical, Space.xxs)
     }
 
     private var problemLine: some View {
@@ -51,7 +53,6 @@ struct AccountRow: View {
                 Text(note)
                     .font(TypeRole.meta)
                     .foregroundStyle(account.status == .error ? Palette.textSecondary : Palette.textTertiary)
-                    .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -60,21 +61,22 @@ struct AccountRow: View {
     }
 
     private var nameAndBadges: some View {
-        HStack(spacing: Space.xs) {
+        // Badges drop under the label when both do not fit. Only the identifier ellipsizes (middle).
+        RowOrStack {
             Text(account.label)
                 .font(TypeRole.row)
                 .foregroundStyle(Palette.textPrimary)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .layoutPriority(1)
             AccountBadges(account: account)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var tooltip: String {
-        var lines = account.windows.map { w in
-            var s = "\(w.short): \(Presenter.percent(w.remaining))% left"
+        var lines = [account.label]
+        lines += account.windows.map { w in
+            var s = "\(w.name): \(Presenter.percent(w.remaining))% left"
             if let d = w.display { s += " (\(d))" }
             if let r = w.resetsAt { s += " · resets in \(Fmt.duration(from: now, to: r)) (\(Fmt.dayTime(r, tz: tz)))" }
             return s
