@@ -1,0 +1,7 @@
+# quota-bar
+Native macOS menu-bar panel for Magpie quotas (replaces the old Magpie.app flyout).
+
+- Stack: SwiftUI, `MenuBarExtra` (.window style), Swift 6, macOS only.
+- Data: `GET http://127.0.0.1:13425/v1/magpie/quotas` -> `{data:[account...]}`. Port is an SSH forward to Oracle's `127.0.0.1:3425` (`ssh -N -L 13425:127.0.0.1:3425 oracle`). Sample: `fixtures/quotas.sample.json` (emails scrubbed).
+- Account fields: provider, name, kind, plan, user, windows[{name,used,remaining,resetsAt,holds?}], readAt, lastServedAt, last, error, until, resets, resetsUsed.
+- Never log or commit real emails or gateway keys.

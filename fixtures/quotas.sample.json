@@ -1,0 +1,912 @@
+{
+ "data": [
+  {
+   "provider": "claude",
+   "name": "Claude Code",
+   "kind": "subscription",
+   "plan": "pro",
+   "user": "account0@example.com",
+   "windows": [
+    {
+     "name": "5 hours",
+     "used": 53,
+     "remaining": 47,
+     "resetsAt": "2026-11-05T21:49:00Z",
+     "holds": {
+      "tokens": 231783,
+      "cost": 12.70733169811321,
+      "priced": true,
+      "used": 53,
+      "routed": {
+       "calls": 159,
+       "tokens": 122845,
+       "cacheRead": 14793494,
+       "cacheWrite": 554150,
+       "cost": 6.734885800000001
+      },
+      "since": "2026-11-05T16:50:00Z"
+     }
+    },
+    {
+     "name": "7 days",
+     "used": 4,
+     "remaining": 96,
+     "resetsAt": "2026-11-12T05:59:00Z",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:16.190556575Z",
+   "lastServedAt": "2026-11-05T20:48:20.999731855Z",
+   "last": true
+  },
+  {
+   "provider": "claude",
+   "name": "Claude Code",
+   "kind": "subscription",
+   "plan": "pro",
+   "user": "account1@example.com",
+   "windows": [
+    {
+     "name": "5 hours",
+     "used": 98,
+     "remaining": 2,
+     "resetsAt": "2026-11-05T21:50:00Z",
+     "holds": {
+      "tokens": 218635,
+      "cost": 12.439721428571426,
+      "priced": true,
+      "used": 98,
+      "routed": {
+       "calls": 249,
+       "tokens": 214262,
+       "cacheRead": 23869195,
+       "cacheWrite": 719080,
+       "cost": 12.190926999999997
+      },
+      "since": "2026-11-05T16:50:00Z"
+     }
+    },
+    {
+     "name": "7 days",
+     "used": 74,
+     "remaining": 26,
+     "resetsAt": "2026-11-07T03:00:00Z",
+     "holds": {
+      "tokens": 3471261,
+      "cost": 183.83901347297308,
+      "priced": true,
+      "used": 74,
+      "routed": {
+       "calls": 3784,
+       "tokens": 2568733,
+       "cacheRead": 287813932,
+       "cacheWrite": 14582450,
+       "cost": 136.04086997000007
+      },
+      "since": "2026-10-31T03:00:00Z"
+     }
+    }
+   ],
+   "readAt": "2026-11-05T17:54:45.086827106Z",
+   "lastServedAt": "2026-11-05T17:56:24.915369239Z"
+  },
+  {
+   "provider": "codex",
+   "name": "Codex",
+   "kind": "subscription",
+   "plan": "plus",
+   "user": "account2@example.com",
+   "windows": [
+    {
+     "name": "5 hours",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-05T22:49:28Z",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "7 days",
+     "used": 5,
+     "remaining": 95,
+     "resetsAt": "2026-11-11T06:37:45Z",
+     "holds": {
+      "tokens": 2149760,
+      "cost": 52.55980000000001,
+      "priced": true,
+      "used": 5,
+      "routed": {
+       "calls": 22,
+       "tokens": 107488,
+       "cacheRead": 1400704,
+       "cost": 2.6279900000000005
+      },
+      "since": "2026-11-04T06:37:45Z"
+     }
+    }
+   ],
+   "readAt": "2026-11-05T20:28:16.990281184Z",
+   "resets": {
+    "count": 2,
+    "until": "2026-11-30T19:22:49.832064Z",
+    "each": [
+     {
+      "until": "2026-11-30T19:22:49.832064Z",
+      "id": "RateLimitResetCredit_1b5e33dc288c8191a9647657731d4ded"
+     },
+     {
+      "until": "2026-12-01T21:08:41.676537Z",
+      "id": "RateLimitResetCredit_c9a4fdabacf88191be4080880b6aaeeb"
+     }
+    ]
+   },
+   "lastServedAt": "2026-11-05T17:30:49.17592724Z"
+  },
+  {
+   "provider": "codex",
+   "name": "Codex",
+   "kind": "subscription",
+   "plan": "plus",
+   "user": "account3@example.com",
+   "windows": [
+    {
+     "name": "5 hours",
+     "used": 100,
+     "remaining": 0,
+     "resetsAt": "2026-11-05T23:19:33Z",
+     "holds": {
+      "tokens": 217379,
+      "cost": 7.745189999999999,
+      "priced": true,
+      "used": 100,
+      "routed": {
+       "calls": 52,
+       "tokens": 217379,
+       "cacheRead": 4965760,
+       "cost": 7.745189999999999
+      },
+      "since": "2026-11-05T18:19:33Z"
+     }
+    },
+    {
+     "name": "7 days",
+     "used": 74,
+     "remaining": 26,
+     "resetsAt": "2026-11-10T16:06:39Z",
+     "holds": {
+      "tokens": 2432685,
+      "cost": 15.279045945945951,
+      "priced": true,
+      "used": 74,
+      "routed": {
+       "calls": 506,
+       "tokens": 1800187,
+       "cacheRead": 34366720,
+       "cost": 11.306494000000004
+      },
+      "since": "2026-11-03T16:06:39Z"
+     }
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.255489823Z",
+   "resets": {
+    "count": 1,
+    "until": "2026-12-01T21:49:02.162925Z",
+    "each": [
+     {
+      "until": "2026-12-01T21:49:02.162925Z",
+      "id": "RateLimitResetCredit_98ff8b0dd94c81918476dc49f4a390c7"
+     }
+    ]
+   },
+   "lastServedAt": "2026-11-05T18:54:50.082713301Z"
+  },
+  {
+   "provider": "codex",
+   "name": "Codex",
+   "kind": "subscription",
+   "plan": "plus",
+   "user": "account4@example.com",
+   "windows": [],
+   "error": "scrubbed@example.com's sign-in has expired \u2014 add the account again to use it",
+   "until": "2026-11-18T16:46:46Z",
+   "resetsUsed": [
+    {
+     "user": "scrubbed@example.com",
+     "at": "2026-11-02T16:35:19.399639098Z",
+     "why": "hand",
+     "windows": 2
+    }
+   ],
+   "lastServedAt": "2026-11-05T16:28:51.98322784Z"
+  },
+  {
+   "provider": "codex",
+   "name": "Codex",
+   "kind": "subscription",
+   "plan": "k12",
+   "user": "account5@example.com",
+   "windows": [
+    {
+     "name": "5 hours",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-06T00:39:42Z",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "7 days",
+     "used": 61,
+     "remaining": 39,
+     "resetsAt": "2026-11-10T09:03:40Z",
+     "holds": {
+      "tokens": 2189828,
+      "cost": 64.47405573770487,
+      "priced": true,
+      "used": 61,
+      "routed": {
+       "calls": 245,
+       "tokens": 1335795,
+       "cacheRead": 23133824,
+       "cost": 39.32917399999997
+      },
+      "since": "2026-11-03T09:03:40Z"
+     }
+    }
+   ],
+   "readAt": "2026-11-05T20:28:16.521252232Z",
+   "lastServedAt": "2026-11-05T16:39:05.523720184Z"
+  },
+  {
+   "provider": "codex",
+   "name": "Codex",
+   "kind": "subscription",
+   "plan": "plus",
+   "user": "account6@example.com",
+   "windows": [
+    {
+     "name": "7 days",
+     "used": 100,
+     "remaining": 0,
+     "resetsAt": "2026-11-09T05:23:30Z",
+     "holds": {
+      "tokens": 81477,
+      "cost": 7.293321999999998,
+      "priced": true,
+      "used": 100,
+      "routed": {
+       "calls": 79,
+       "tokens": 81477,
+       "cacheRead": 6141312,
+       "cost": 7.293321999999998
+      },
+      "since": "2026-11-02T05:23:30Z"
+     }
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.41655338Z",
+   "until": "2026-11-21T04:05:40Z",
+   "lastServedAt": "2026-11-02T16:21:08.070533135Z"
+  },
+  {
+   "provider": "zcode",
+   "name": "ZCode",
+   "kind": "subscription",
+   "plan": "ZCode Start Plan",
+   "user": "account7@example.com",
+   "windows": [],
+   "error": "this account has no GLM Coding Plan, and ZCode's Start Plan has ended or was never started"
+  },
+  {
+   "provider": "workbuddy",
+   "name": "WorkBuddy",
+   "kind": "subscription",
+   "plan": "Free plan",
+   "user": "account8@example.com",
+   "windows": [
+    {
+     "name": "Credits",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-30T15:59:59Z",
+     "display": "0 / 500",
+     "limit": 500,
+     "unit": "credits"
+    },
+    {
+     "name": "Extra credits",
+     "used": 0,
+     "remaining": 100,
+     "display": "0 / 3224",
+     "limit": 3224,
+     "unit": "credits",
+     "runsOutAt": "2026-12-03T09:22:01Z",
+     "runsOut": 1500
+    },
+    {
+     "name": "Total credits",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-30T15:59:59Z",
+     "display": "0 / 3724",
+     "limit": 3724,
+     "unit": "credits",
+     "runsOutAt": "2026-12-03T09:22:01Z",
+     "runsOut": 1500,
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:18.074320643Z"
+  },
+  {
+   "provider": "workbuddy-ai",
+   "name": "WorkBuddy AI",
+   "kind": "subscription",
+   "plan": "Free plan",
+   "user": "account9@example.com",
+   "windows": [
+    {
+     "name": "Credits",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-30T15:59:59Z",
+     "display": "0 / 100",
+     "limit": 100,
+     "unit": "credits",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.574712448Z"
+  },
+  {
+   "provider": "workbuddy-ai",
+   "name": "WorkBuddy AI",
+   "kind": "subscription",
+   "plan": "Free plan",
+   "user": "account10@example.com",
+   "windows": [
+    {
+     "name": "Credits",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-30T15:59:59Z",
+     "display": "0 / 100",
+     "limit": 100,
+     "unit": "credits",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.484317883Z"
+  },
+  {
+   "provider": "workbuddy-ai",
+   "name": "WorkBuddy AI",
+   "kind": "subscription",
+   "plan": "Free plan",
+   "user": "account11@example.com",
+   "windows": [
+    {
+     "name": "Credits",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-30T15:59:59Z",
+     "display": "0 / 100",
+     "limit": 100,
+     "unit": "credits",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.587080282Z"
+  },
+  {
+   "provider": "workbuddy-ai",
+   "name": "WorkBuddy AI",
+   "kind": "subscription",
+   "plan": "Free plan",
+   "user": "account12@example.com",
+   "windows": [
+    {
+     "name": "Credits",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-30T15:59:59Z",
+     "display": "0 / 100",
+     "limit": 100,
+     "unit": "credits",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.506824064Z"
+  },
+  {
+   "provider": "workbuddy-ai",
+   "name": "WorkBuddy AI",
+   "kind": "subscription",
+   "plan": "Free plan",
+   "user": "account13@example.com",
+   "windows": [
+    {
+     "name": "Credits",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-30T15:59:59Z",
+     "display": "0 / 100",
+     "limit": 100,
+     "unit": "credits"
+    },
+    {
+     "name": "Extra credits",
+     "used": 3.023999996,
+     "remaining": 96.976000004,
+     "display": "7.56 / 250",
+     "amount": 7.55999999,
+     "limit": 250,
+     "unit": "credits",
+     "runsOutAt": "2026-11-13T15:51:40Z",
+     "runsOut": 242.44000001
+    },
+    {
+     "name": "Total credits",
+     "used": 2.159999997142857,
+     "remaining": 97.84000000285714,
+     "resetsAt": "2026-11-30T15:59:59Z",
+     "display": "7.56 / 350",
+     "amount": 7.55999999,
+     "limit": 350,
+     "unit": "credits",
+     "runsOutAt": "2026-11-13T15:51:40Z",
+     "runsOut": 242.44000001,
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Free model tokens",
+     "used": 5.325311,
+     "remaining": 94.674689,
+     "resetsAt": "2026-11-06T19:08:02.492Z",
+     "display": "5.3M / 100M",
+     "amount": 5325311,
+     "limit": 100000000,
+     "unit": "tokens"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.708750972Z"
+  },
+  {
+   "provider": "antigravity",
+   "name": "Antigravity",
+   "kind": "subscription",
+   "plan": "Google AI Pro",
+   "user": "account14@example.com",
+   "windows": [
+    {
+     "name": "Gemini \u00b7 7 days",
+     "used": 33.01735,
+     "remaining": 66.98265,
+     "resetsAt": "2026-11-06T20:55:48Z",
+     "pool": "Gemini",
+     "holds": {
+      "tokens": 50979228,
+      "cost": 93.39699589761153,
+      "priced": true,
+      "used": 33.01735,
+      "routed": {
+       "calls": 4234,
+       "tokens": 16831990,
+       "cacheRead": 189466677,
+       "cost": 30.837213025000043
+      },
+      "since": "2026-11-01T19:13:55Z"
+     }
+    },
+    {
+     "name": "Gemini \u00b7 5 hours",
+     "used": 0.09472400000000158,
+     "remaining": 99.905276,
+     "resetsAt": "2026-11-05T22:56:44Z",
+     "pool": "Gemini",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 5 hours",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-06T01:28:16Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:16.957559095Z",
+   "lastServedAt": "2026-11-05T20:47:57.470197449Z"
+  },
+  {
+   "provider": "antigravity",
+   "name": "Antigravity",
+   "kind": "subscription",
+   "plan": "Google AI Pro",
+   "user": "account15@example.com",
+   "windows": [
+    {
+     "name": "Gemini \u00b7 7 days",
+     "used": 33.01735,
+     "remaining": 66.98265,
+     "resetsAt": "2026-11-06T20:55:48Z",
+     "pool": "Gemini",
+     "holds": {
+      "tokens": 8158714,
+      "cost": 12.261058352653977,
+      "priced": true,
+      "used": 33.01735,
+      "routed": {
+       "calls": 700,
+       "tokens": 2693791,
+       "cacheRead": 17715902,
+       "cost": 4.048276549999998
+      },
+      "since": "2026-10-30T20:55:48Z"
+     }
+    },
+    {
+     "name": "Gemini \u00b7 5 hours",
+     "used": 0.09472400000000158,
+     "remaining": 99.905276,
+     "resetsAt": "2026-11-05T22:56:44Z",
+     "pool": "Gemini",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:17Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 5 hours",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-06T01:28:17Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.188279481Z",
+   "lastServedAt": "2026-11-01T19:13:55.484170703Z"
+  },
+  {
+   "provider": "antigravity",
+   "name": "Antigravity",
+   "kind": "subscription",
+   "plan": "Google AI Pro",
+   "user": "account16@example.com",
+   "windows": [
+    {
+     "name": "Gemini \u00b7 7 days",
+     "used": 0.20672000000000468,
+     "remaining": 99.79328,
+     "resetsAt": "2026-11-11T17:51:53Z",
+     "pool": "Gemini",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Gemini \u00b7 5 hours",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-06T01:28:17Z",
+     "pool": "Gemini",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:17Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 5 hours",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-06T01:28:17Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.123845626Z",
+   "lastServedAt": "2026-11-05T17:00:54.98435439Z"
+  },
+  {
+   "provider": "antigravity",
+   "name": "Antigravity",
+   "kind": "subscription",
+   "plan": "Google AI Pro",
+   "user": "account17@example.com",
+   "windows": [
+    {
+     "name": "Gemini \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:17Z",
+     "pool": "Gemini",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Gemini \u00b7 5 hours",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-06T01:28:17Z",
+     "pool": "Gemini",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:17Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 5 hours",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-06T01:28:17Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.455586565Z",
+   "lastServedAt": "2026-10-31T15:18:11.949471778Z"
+  },
+  {
+   "provider": "antigravity",
+   "name": "Antigravity",
+   "kind": "subscription",
+   "plan": "Antigravity Starter Quota",
+   "user": "account18@example.com",
+   "windows": [
+    {
+     "name": "Claude Opus 4.6 (Thinking)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Claude Sonnet 4.6 (Thinking)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 2.5 Flash",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 2.5 Flash-Lite",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3 Flash",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.1 Flash Image",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.1 Flash Lite",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.5 Flash Lite",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.8 Flash (High)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.8 Flash (Low)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.8 Flash (Medium)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "gemini-3.8-flash-tiered",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "GPT-OSS 120B (Medium)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z",
+     "pool": "Gemini",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.026835723Z"
+  },
+  {
+   "provider": "antigravity",
+   "name": "Antigravity",
+   "kind": "subscription",
+   "plan": "Antigravity Starter Quota",
+   "user": "account19@example.com",
+   "windows": [
+    {
+     "name": "Claude Opus 4.6 (Thinking)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Claude Sonnet 4.6 (Thinking)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 2.5 Flash",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 2.5 Flash-Lite",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3 Flash",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.1 Flash Image",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.1 Flash Lite",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.5 Flash Lite",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.8 Flash (High)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.8 Flash (Low)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini 3.8 Flash (Medium)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "gemini-3.8-flash-tiered",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "GPT-OSS 120B (Medium)",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z"
+    },
+    {
+     "name": "Gemini \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z",
+     "pool": "Gemini",
+     "holdsWhy": "low"
+    },
+    {
+     "name": "Claude & GPT \u00b7 7 days",
+     "used": 0,
+     "remaining": 100,
+     "resetsAt": "2026-11-12T20:28:16Z",
+     "pool": "Claude & GPT",
+     "holdsWhy": "low"
+    }
+   ],
+   "readAt": "2026-11-05T20:28:17.026104081Z"
+  },
+  {
+   "provider": "opencode-zen-free",
+   "name": "OpenCode Zen Free",
+   "kind": "subscription",
+   "plan": "OpenCode Zen Free",
+   "user": "account20@example.com",
+   "windows": []
+  },
+  {
+   "provider": "opencode-go",
+   "name": "OpenCode Go",
+   "kind": "plan",
+   "windows": [
+    {
+     "name": "5 hours",
+     "used": 0,
+     "remaining": 100
+    },
+    {
+     "name": "7 days",
+     "used": 1,
+     "remaining": 99,
+     "resetsAt": "2026-11-09T00:00:00Z"
+    },
+    {
+     "name": "Month",
+     "used": 0,
+     "remaining": 100
+    }
+   ],
+   "readAt": "2026-11-05T20:48:25.450659974Z",
+   "lastServedAt": "2026-11-05T18:22:12.930809331Z"
+  }
+ ],
+ "object": "list"
+}
