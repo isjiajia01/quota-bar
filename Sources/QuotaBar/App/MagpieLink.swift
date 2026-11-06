@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import os
 
 /// Magpie's web entry point. DESIGN.md defines no URL, so this App-layer constant is the only
 /// place it lives; the footer button and the ⌘⇧M hotkey both read it.
@@ -15,7 +16,19 @@ enum MagpieLink {
 enum BrowserOpener {
     static let safariBundleIdentifier = "com.apple.Safari"
 
+    /// The Safari-saved "magpie" web app (~/Applications/magpie.app).
+    static let webAppBundleIdentifier = "com.apple.Safari.WebApp.73540D0F-FDAE-42D1-AB8E-68154FDA2761"
+
     static func open(_ url: URL) {
+        let log = Logger(subsystem: "page.isjia.quotabar", category: "opener")
+        let found = NSWorkspace.shared.urlForApplication(withBundleIdentifier: webAppBundleIdentifier)
+        log.notice("open: webApp=\(found?.path ?? "nil", privacy: .public)")
+        if let webApp = NSWorkspace.shared.urlForApplication(withBundleIdentifier: webAppBundleIdentifier) {
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.activates = true
+            NSWorkspace.shared.openApplication(at: webApp, configuration: configuration) { _, _ in }
+            return
+        }
         guard let safari = NSWorkspace.shared.urlForApplication(withBundleIdentifier: safariBundleIdentifier) else {
             NSWorkspace.shared.open(url)  // no Safari: the default browser is the only handler left
             return
