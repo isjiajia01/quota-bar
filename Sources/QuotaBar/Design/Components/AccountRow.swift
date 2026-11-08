@@ -1,7 +1,9 @@
 import SwiftUI
 
-/// One account line. States: usable · nearly empty (red value) · error (glyph + note) ·
-/// no quota (tertiary note). Badges: differing plan, `until`, reset credits, old read.
+/// One account line. Usable and nearly-empty rows stack the 5-hour window above the 7-day window
+/// (DESIGN.md › Row window pair); an account with neither keeps a single line. States: usable ·
+/// nearly empty (tighter value critical) · error (glyph + note) · no quota (tertiary note).
+/// Badges: differing plan, `until`, reset credits, old read.
 struct AccountRow: View {
     var account: AccountVM
     @Environment(\.panelNow) private var now
@@ -20,27 +22,48 @@ struct AccountRow: View {
     }
 
     private var quotaLine: some View {
-        let binding = account.binding
-        let projection = binding.flatMap { Pace.projectedRunOut($0, readAt: account.readAt, now: now) }
-        return VStack(alignment: .leading, spacing: Space.hair) {
+        let lines = Presenter.rowLines(for: account)
+        let projection = Presenter.tightestWindow(in: lines)
+            .flatMap { Pace.projectedRunOut($0, readAt: account.readAt, now: now) }
+        return VStack(alignment: .leading, spacing: Space.xxs) {
             HStack(spacing: Space.s) {
                 nameAndBadges
-                UsageBar(remaining: binding?.remaining, pace: binding.flatMap { Pace.elapsed($0, at: now) })
-                Text("\(Presenter.percent(binding?.remaining))%")
-                    .font(TypeRole.rowValue)
-                    .foregroundStyle(QuotaLevel(remaining: binding?.remaining).text)
-                    .fixedSize()
-                    .frame(minWidth: Metric.valueColumn, alignment: .trailing)
-                // Window label: abbreviated by rule, then wraps (never ellipsized).
-                Text(binding?.short ?? "")
-                    .font(TypeRole.meta)
-                    .foregroundStyle(Palette.textSecondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(width: Metric.trailingColumn, alignment: .leading)
+                // 5h above 7d, each bar with its own pace tick and percent in the shared columns.
+                VStack(spacing: Space.xxs) {
+                    ForEach(lines) { windowLine($0) }
+                }
             }
             if let projection { ProjectionNote(date: projection) }
         }
         .padding(.vertical, Space.xxs)
+    }
+
+    /// One stacked window: bar + pace tick · percent in the value column · tiny slot label.
+    /// A slot the account does not report keeps a neutral track and "—" so the columns stay aligned.
+    private func windowLine(_ line: RowWindowLine) -> some View {
+        let window = line.window
+        return HStack(spacing: Space.s) {
+            UsageBar(remaining: window?.remaining, pace: window.flatMap { Pace.elapsed($0, at: now) })
+            Text(Presenter.percentText(window?.remaining))
+                .font(TypeRole.rowValue)
+                .foregroundStyle(valueColour(line))
+                .fixedSize()
+                .frame(minWidth: Metric.valueColumn, alignment: .trailing)
+            // Tiny label: the slot ("5h"/"7d") or, for an unslotted row, the abbreviated window name.
+            Text(line.label)
+                .font(TypeRole.detail)
+                .foregroundStyle(Palette.textSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(width: Metric.trailingColumn, alignment: .leading)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(line.accessibilityText)
+    }
+
+    /// Both percents stay readable; only the tightest takes its level colour (never colour alone).
+    private func valueColour(_ line: RowWindowLine) -> Color {
+        guard let remaining = line.window?.remaining else { return Palette.textSecondary }
+        return line.isTightest ? QuotaLevel(remaining: remaining).text : Palette.textPrimary
     }
 
     private var problemLine: some View {

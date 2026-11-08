@@ -202,7 +202,9 @@ struct BoundedScroll<Content: View>: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .clipped()
         case .snapshotFull:
-            content
+            // Every row at its ideal height: without the rigid vertical size the renderer's second
+            // layout pass squeezes the card stack and stacked row bars overlap.
+            content.fixedSize(horizontal: false, vertical: true)
         }
     }
 }

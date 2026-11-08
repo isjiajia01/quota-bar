@@ -1,7 +1,8 @@
 # QuotaBar — Design System (skeleton v2, FROZEN)
 
 A native SwiftUI `MenuBarExtra(.window)` panel showing quota left across Magpie accounts (replaces the Magpie flyout).
-Platform rules are in `docs/PLATFORM_CONSTRAINTS.md`, which wins on conflict. v2 (extend 2026-11-08): cards, hero meters, pace.
+Platform rules are in `docs/PLATFORM_CONSTRAINTS.md`, which wins on conflict. v2 (extend 2026-11-08): cards, hero meters, pace,
+row 5h/7d window pair.
 Status: **frozen**. New tokens or components only through designer `extend`.
 
 ## Skeleton paths
@@ -55,11 +56,15 @@ dark and **Increase Contrast** variants (solid fills, deeper inks, 45 % strokes)
   These are measured fixtures, not an all-wallpaper guarantee. Re-measure material/tint changes; native compositor checks matter.
 - **Snapshots:** standard state/expanded/stress/fallback snapshots check layout. `glass-backdrop-*` is an unblurred synthetic
   layer-composition stress image, not a rendering of the AppKit window material. Native captures prove the actual blur.
+  `rows-*` covers the row window pair (both slots, a missing slot, a credit-only row). `BoundedScroll`'s `snapshotFull` mode is
+  rigidly sized (`fixedSize(vertical:)`): without it the renderer's second layout pass squeezes the card stack and stacked row
+  bars overlap. That is a snapshot-mode artefact; the live panel is never squeezed (ScrollView content keeps its ideal height).
 - **Debug QA:** `--fixture` plus `QUOTABAR_FIXTURE_APPEARANCE=dark` overrides only this process's appearance;
   `QUOTABAR_GLASS_DIAGNOSTICS=<scratch path>` dumps geometry and backing suppression (no quota identities), debug builds only.
 
 ## Rules (on `window.remaining`, raw value preserved; only rendering clamps to 0…100)
-- **Binding window** = the account window with the lowest `remaining`. Rows and gauges show it.
+- **Binding window** = the account window with the lowest `remaining`. It decides status, ordering and the folded group, and it
+  is the single bar of a row without a 5h/7d window (see Row window pair). Gauges show it.
 - **Levels:** healthy > 30 · low ≤ 30 (ochre) · critical ≤ 10 (crimson).
 - **Nearly empty = binding remaining ≤ 5.** Such accounts fold into a per-provider "N nearly empty · a–b%" row (starts collapsed).
 - **Hero ("Most left · <account>")** = the usable account with the highest binding remaining. This is a data fact,
@@ -78,6 +83,26 @@ dark and **Increase Contrast** variants (solid fills, deeper inks, 45 % strokes)
   Hero meters print the window reset ("resets 1h 0m"); rows keep it in the tooltip. There are no reset actions (read-only endpoint).
 - **Amounts:** `display` + `unit` → "7.56 / 250 credits used" (display is used/limit in every observed record). `runsOutAt`
   is shown as **credit expiry** ("expires 13 Nov"), never as a projection — the constraints separate expiry from reset.
+
+## Row window pair (extend 2026-11-08; `Presenter.rowLines` in Presentation.swift, tested in `RowLinesTests`)
+Owner feedback: a non-primary row showed only its tightest window while the hero showed both. Every account row now shows the
+**5-hour window above the 7-day window** as two thin bars, each with its own even-pace tick, in roughly one row's height.
+- **Slots come from the parsed window length** (`Presenter.slot`): 5 hours → `5h`, 7 days → `7d`. Labels never decide a slot, so
+  qualified names ("Gemini · 5 hours") still slot. Credits, Month, model pools and any other length are not slotted.
+- **One window per slot**: the tightest of that length (lowest `remaining`; payload order on ties, and a window with no
+  `remaining` only wins when no candidate reports one). Two 5h pools therefore contribute one bar; the pool qualifier stays in the
+  tooltip, which lists every window.
+- **Percents**: both stay in the value column as compact monospaced numbers. Only the tighter line takes its level colour
+  (`lowText` / `criticalText`); the other stays `textPrimary`. Numbers are always present, so level is never colour-only.
+- **Missing slot** (the account reports only one of the two lengths, e.g. a 7d-only plan): the slot keeps its row position with a
+  neutral `track` bar and an em dash, so bars, percents and labels line up down the card.
+- **Neither slot**: the row keeps the single-line layout of its binding window and its abbreviated window name (unchanged).
+- **Tiny labels**: the trailing column shows `5h` / `7d` (or the abbreviated window name for an unslotted row). Labels are the
+  `detail` role; the full name, reset time, elapsed share and pace explanation are in the row tooltip. No reset text in rows.
+- **Projection** ("may run out ~HH:mm") stays under the row for the tighter line only, from that window's own pace.
+- **Consequence**: a third, unslotted window that is tighter than both slots (e.g. a model pool at 8 %) is no longer the row's
+  bar. It stays in the tooltip, exactly as the hero card shows only its two lowest windows. The card's number and status still come
+  from the binding window.
 
 ## Pace (extend 2026-11-08; `Pace` in Presentation.swift, tested in `PaceTests`)
 - **Window length** parsed from the name: `N minute/hour/day/week(s)` anywhere ("Gemini · 7 days"). Else unknown ("Month", "Credits").
@@ -113,9 +138,11 @@ Per-account errors live inside `content`/`stale`. They are never transport failu
   note (⚠ glyph for errors) under the name and "—" as its number.
 - **WindowMeter**: `label │ flexible UsageBar + pace tick │ value │ resets …`, then fact lines (amount used · expires) and a
   **ProjectionNote**. Tooltip: full name, %, amount, reset date, elapsed %, projection, expiry (`WindowText.tooltip`).
-- **AccountRow**: usable `label [badges] │ ▬bar+tick │ %value │ window` (+ ProjectionNote line) · nearly-empty (same, criticalText value) ·
-  error (⚠ label + note) · noQuota ("No quota reported"). Tooltip lists every window via `WindowText.tooltip`.
+- **AccountRow**: usable `label [badges] │ ▬5h bar+tick │ % │ 5h` over `▬7d bar+tick │ % │ 7d` (see Row window pair) ·
+  nearly-empty (same, tighter value criticalText) · error (⚠ label + note) · noQuota ("No quota reported"). Tooltip lists every
+  window via `WindowText.tooltip`.
 - **Column grid**: value column + 80 pt trailing column line up across meters, rows and the nearly-empty range (one % track per card).
+  A row fills the same columns as a meter, so stacked percents sit under the hero's percent and the slot labels under the resets.
 - **NearlyEmptyGroup**: ▸ chevron · critical dot · "N nearly empty" · range in the value column (criticalText). Expanded rows hang off a 1 pt guide, indented 12 pt.
 - **AccountBadges**: plan chip (only when it differs from the provider plan) · ⌛ until · ↺N · clock + age (old read).
 - Primitives: **Card** · **HeroValue** ("47" + small "%", or "—") · **UsageBar** (remaining fill, optional pace tick, fixed or flexible) ·
@@ -128,6 +155,8 @@ Only **account identifiers** ellipsize (middle; full value in the row tooltip / 
 - **RowOrStack** (layout primitive): children sit in one row when all fit at ideal width (and ≤ `maxRow`), otherwise one per
   line. Provider name + plan chip → plan drops below; row label + badges → badges drop below. HeroValue is never compressed.
 - **Wrap, don't cut:** provider names, error notes (no line cap), status line, meter labels, reset text and row window labels wrap.
+- **Row slot labels** are the fixed `5h` / `7d` tokens and never wrap; an unslotted row keeps the abbreviated window name, which
+  wraps in the same trailing column. Full window names are tooltip-only.
 - **Window abbreviation rule** (`Presenter.shortWindowName`, meters and rows): `" · "`→space · `N minutes/hours/days/weeks`→`Nm/Nh/Nd/Nw` ·
   drop a trailing `(…)` · drop a trailing `credits`/`tokens` after a qualifier (`Extra credits`→`Extra`; bare `Credits` stays).
   Tooltips show the full window name. Plan text only drops a leading provider name (`stripProvider`).

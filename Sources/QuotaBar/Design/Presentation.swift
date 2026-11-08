@@ -51,6 +51,51 @@ struct WindowVM: Sendable, Equatable, Identifiable {
     }
 }
 
+/// Row window slots: every account row stacks the 5-hour window above the 7-day window
+/// (DESIGN.md › Row window pair). Membership comes from the parsed window length, never the label.
+enum WindowSlot: String, CaseIterable, Sendable {
+    case fiveHour = "5h"
+    case weekly = "7d"
+
+    /// The parsed window length that defines the slot.
+    var length: TimeInterval {
+        switch self {
+        case .fiveHour: 5 * 3_600
+        case .weekly: 7 * 86_400
+        }
+    }
+
+    /// Tiny row label. The full window name stays in the row tooltip.
+    var label: String { rawValue }
+
+    /// Spoken form for accessibility, where an abbreviation is not enough.
+    var spokenName: String {
+        switch self {
+        case .fiveHour: "5-hour window"
+        case .weekly: "7-day window"
+        }
+    }
+}
+
+/// One line of a row's window stack: bar, percent and tiny label.
+/// `window == nil` is a slot the account does not report: grey track and "—" keep the columns aligned.
+struct RowWindowLine: Sendable, Equatable, Identifiable {
+    /// nil for an account with neither slot (single line: the binding window, as before).
+    var slot: WindowSlot?
+    var label: String
+    var window: WindowVM?
+    /// The line the row colours by level and projects a run-out from (lowest remaining).
+    var isTightest: Bool
+
+    var id: String { slot?.rawValue ?? window?.name ?? label }
+
+    /// Spoken text: the full window name, never the slot abbreviation.
+    var accessibilityText: String {
+        guard let window else { return "\(slot?.spokenName ?? label) not reported" }
+        return "\(window.name): \(Presenter.percent(window.remaining))% left"
+    }
+}
+
 struct AccountVM: Sendable, Equatable, Identifiable {
     enum Status: Sendable, Equatable { case usable, nearlyEmpty, error, noQuota }
 
@@ -199,6 +244,62 @@ enum Presenter {
         return trimmed.isEmpty ? name : trimmed
     }
 
+    // MARK: - Row window pair
+
+    /// The slot a window belongs to, from its parsed length ("Gemini · 5 hours" → 5h).
+    /// nil for anything else: credits, month, model pools.
+    static func slot(of window: WindowVM) -> WindowSlot? {
+        guard let length = Pace.windowLength(window.name) else { return nil }
+        return WindowSlot.allCases.first { $0.length == length }
+    }
+
+    /// A row's window lines: 5h above 7d, each slot kept even when the account does not report it,
+    /// so bars, percents and labels line up down the card. An account with neither slot keeps the
+    /// single-line layout of its binding window.
+    static func rowLines(for account: AccountVM) -> [RowWindowLine] {
+        let slotted = account.windows.compactMap { window in slot(of: window).map { ($0, window) } }
+        guard !slotted.isEmpty else {
+            guard let binding = account.binding else { return [] }
+            return [RowWindowLine(slot: nil, label: binding.short, window: binding, isTightest: true)]
+        }
+        var lines = WindowSlot.allCases.map { slot in
+            RowWindowLine(slot: slot, label: slot.label,
+                          window: tightest(slotted.filter { $0.0 == slot }.map(\.1)), isTightest: false)
+        }
+        if let index = tightestIndex(lines) { lines[index].isTightest = true }
+        return lines
+    }
+
+    /// The window a row's run-out projection belongs to: the tightest line only.
+    static func tightestWindow(in lines: [RowWindowLine]) -> WindowVM? {
+        lines.first { $0.isTightest }?.window
+    }
+
+    /// Index of the lowest remaining among the lines; the first line wins a tie. nil when no
+    /// line reports a value.
+    private static func tightestIndex(_ lines: [RowWindowLine]) -> Int? {
+        var bestIndex: Int?
+        var bestRemaining = Double.infinity
+        for (index, line) in lines.enumerated() {
+            guard let remaining = line.window?.remaining, remaining < bestRemaining else { continue }
+            bestIndex = index
+            bestRemaining = remaining
+        }
+        return bestIndex
+    }
+
+    /// The window of one slot with the lowest remaining (payload order on ties). A window without
+    /// a remaining value only wins when no candidate reports one.
+    private static func tightest(_ windows: [WindowVM]) -> WindowVM? {
+        var best: WindowVM?
+        for window in windows {
+            guard let remaining = window.remaining else { best = best ?? window; continue }
+            guard let bestRemaining = best?.remaining else { best = window; continue }
+            if remaining < bestRemaining { best = window }
+        }
+        return best
+    }
+
     /// Two lowest windows of the hero, in their original order (hero meters).
     static func heroWindows(for windows: [WindowVM]) -> [WindowVM] {
         let known = windows.filter { $0.remaining != nil }
@@ -218,6 +319,11 @@ enum Presenter {
         guard let v = value else { return "—" }
         if v > 0 && v < 1 { return "<1" }
         return String(Int(max(0, min(100, v)).rounded(.down)))
+    }
+
+    /// Value-column text: "47%", or a bare em dash when the window (or the whole slot) reports nothing.
+    static func percentText(_ value: Double?) -> String {
+        value.map { "\(percent($0))%" } ?? "—"
     }
 
     static func range(_ accounts: [AccountVM]) -> String {
