@@ -11,12 +11,13 @@ extension EnvironmentValues {
 }
 
 extension QuotaLevel {
-    var fill: Color {
+    /// Bar fill: same-hue gradient token per level.
+    var fill: LinearGradient {
         switch self {
-        case .healthy: Palette.healthy
-        case .low: Palette.low
-        case .critical: Palette.critical
-        case .unknown: Palette.track
+        case .healthy: Palette.healthyFill
+        case .low: Palette.lowFill
+        case .critical: Palette.criticalFill
+        case .unknown: Palette.unknownFill
         }
     }
 
@@ -29,43 +30,89 @@ extension QuotaLevel {
     }
 }
 
-/// Provider gauge: one ring, remaining fraction of the hero's binding window.
-/// Unknown (no quota / error) = dashed track.
-struct QuotaRing: View {
+/// Usage bar: remaining fill (visual clamp only) with an optional even-pace tick.
+/// The tick sits where the fill would be at an even burn (1 − elapsed). Fill short of the
+/// tick = burning faster than the clock. `width: nil` flexes to the offered width.
+struct UsageBar: View {
     var remaining: Double?
+    var pace: Double? = nil
+    var width: CGFloat? = Metric.barWidth
+
     var body: some View {
-        let level = QuotaLevel(remaining: remaining)
-        ZStack {
-            if let r = remaining {
-                Circle().stroke(Palette.track, lineWidth: Metric.ringStroke)
-                Circle()
-                    .trim(from: 0, to: max(0, min(1, r / 100)))
-                    .stroke(level.fill, style: StrokeStyle(lineWidth: Metric.ringStroke, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-            } else {
-                Circle().stroke(Palette.track, style: StrokeStyle(lineWidth: Metric.ringStroke, dash: Metric.ringDash))
+        let fraction = max(0, min(1, (remaining ?? 0) / 100))
+        GeometryReader { geo in
+            let w = geo.size.width
+            ZStack(alignment: .leading) {
+                Capsule().fill(Palette.track).frame(height: Metric.barHeight)
+                Capsule()
+                    .fill(QuotaLevel(remaining: remaining).fill)
+                    .frame(width: fraction > 0 ? max(Metric.barHeight, w * fraction) : 0, height: Metric.barHeight)
+                if let elapsed = pace {
+                    let x = w * (1 - elapsed)
+                    Capsule()
+                        .fill(Palette.paceTick)
+                        .frame(width: Metric.paceTickWidth, height: Metric.barHeight + Metric.paceTickOverhang * 2)
+                        .offset(x: min(max(0, x - Metric.paceTickWidth / 2), w - Metric.paceTickWidth))
+                }
             }
+            .frame(height: geo.size.height)
         }
-        .padding(Metric.ringStroke / 2)
-        .frame(width: Metric.ring, height: Metric.ring)
+        .frame(width: width, height: Metric.barHeight + Metric.paceTickOverhang * 2)
+        .frame(maxWidth: width == nil ? .infinity : nil)
         .accessibilityHidden(true)
     }
 }
 
-/// Thin horizontal usage bar (remaining fill). Visual clamp only.
-struct UsageBar: View {
+/// Provider card surface: translucent spruce tint over the shared panel blur, edged by the
+/// gradient hairline. Reduce Transparency or Increase Contrast → the solid dynamic `cardFill`.
+struct Card<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        content
+            .padding(.horizontal, Space.m)
+            .padding(.vertical, Space.s + Space.xxs)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(CardSurface())
+    }
+}
+
+/// No per-card blur: these static colour layers reveal the panel's single behind-window material.
+/// Accessibility uses the solid card token over PanelGlass's opaque fallback.
+struct CardSurface: View {
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+    @Environment(\.colorSchemeContrast) private var contrast
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
+        if reduceTransparency || contrast == .increased {
+            shape.fill(Palette.cardFill)
+                .overlay(shape.strokeBorder(Palette.cardStroke, lineWidth: Metric.cardStroke))
+        } else {
+            shape.fill(Palette.cardGlassTint)
+                .overlay(shape.fill(Palette.cardSheen))
+                .overlay(shape.strokeBorder(Palette.glassRim, lineWidth: Metric.glassRim))
+        }
+    }
+}
+
+/// The dominant number: "47" + smaller "%", level-coloured; "—" when unknown.
+struct HeroValue: View {
     var remaining: Double?
     var body: some View {
-        let fraction = max(0, min(1, (remaining ?? 0) / 100))
-        Capsule()
-            .fill(Palette.track)
-            .overlay(alignment: .leading) {
-                Capsule()
-                    .fill(QuotaLevel(remaining: remaining).fill)
-                    .frame(width: Metric.barWidth * fraction)
+        let level = QuotaLevel(remaining: remaining)
+        Group {
+            if remaining == nil {
+                Text("—").font(TypeRole.heroUnit).foregroundStyle(Palette.textSecondary)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text(Presenter.percent(remaining)).font(TypeRole.heroValue)
+                    Text("%").font(TypeRole.heroUnit)
+                }
+                .foregroundStyle(level.text)
             }
-            .frame(width: Metric.barWidth, height: Metric.barHeight)
-            .accessibilityHidden(true)
+        }
+        .fixedSize()
+        .accessibilityLabel(remaining == nil ? "Unknown" : "\(Presenter.percent(remaining)) percent left")
     }
 }
 
@@ -87,22 +134,6 @@ struct Chip<Label: View>: View {
 
 extension Chip where Label == Text {
     init(_ text: String) { self.init { Text(text) } }
-}
-
-/// Window value chip: "5h 47" with level-coloured number.
-struct WindowChip: View {
-    var window: WindowVM
-    var body: some View {
-        Chip {
-            HStack(spacing: Space.xxs) {
-                Text(window.short)
-                Text(Presenter.percent(window.remaining))
-                    .foregroundStyle(window.level == .healthy ? Palette.textPrimary : window.level.text)
-            }
-        }
-        .accessibilityElement(children: .combine)
-        .help("\(window.name): \(Presenter.percent(window.remaining))% left")
-    }
 }
 
 /// One row when every child fits at its ideal width within the offered width (and `maxRow`,
@@ -197,6 +228,12 @@ enum Fmt {
         if d > 0 { return "\(d)d \(h)h" }
         if h > 0 { return "\(h)h \(m)m" }
         return "\(max(m, 1))m"
+    }
+
+    /// "14:05" when on `now`'s calendar day, else "7 Nov 11:02".
+    static func when(_ date: Date, now: Date, tz: TimeZone) -> String {
+        var cal = Calendar(identifier: .gregorian); cal.timeZone = tz
+        return cal.isDate(date, inSameDayAs: now) ? clock(date, tz: tz) : dayTime(date, tz: tz)
     }
 
     private static func formatter(_ format: String, _ tz: TimeZone) -> DateFormatter {

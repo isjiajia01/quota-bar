@@ -14,6 +14,12 @@ struct QuotaBarApp: App {
     init() {
         let useFixture = CommandLine.arguments.contains("--fixture")
             || ProcessInfo.processInfo.environment["QUOTABAR_SOURCE"] == "fixture"
+        #if DEBUG
+        // Fixture-only appearance override for material QA; never changes the user's system setting.
+        if useFixture, let mode = ProcessInfo.processInfo.environment["QUOTABAR_FIXTURE_APPEARANCE"] {
+            NSApplication.shared.appearance = NSAppearance(named: mode == "dark" ? .darkAqua : .aqua)
+        }
+        #endif
         let store = QuotaStore(source: useFixture ? FixtureQuotaSource() : LiveQuotaSource())
         store.startAutoRefresh()  // immediate fetch, then every 60 s; Retry/⟳ refresh on demand
         _store = State(initialValue: store)
@@ -43,6 +49,7 @@ struct QuotaBarApp: App {
                     quit: { NSApplication.shared.terminate(nil) }
                 )
             )
+            .background(PanelGlass())
         } label: {
             // DESIGN.md specifies no status-item summary, so the label stays a template symbol
             // (no text, no level colours in the menu bar).

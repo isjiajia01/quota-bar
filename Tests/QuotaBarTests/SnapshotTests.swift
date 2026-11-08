@@ -19,6 +19,7 @@ import Testing
         #expect(height > 60)
         #expect(height <= Self.maxHeight, "panel must stay bounded")
         #expect(!isBlank(image))
+        if page == .content || page == .expanded { assertCardInsets(image) }
     }
 
     /// Uncapped render of every row, for visual review only.
@@ -52,8 +53,68 @@ import Testing
             let view = StatePageFrame { QuotaPanel(state: .content(snap)).environment(\.panelNow, StatePage.now) }
             let image = try render(view: view, name: "stress", scheme: scheme, mode: .snapshotFull)
             #expect(image.width == Int(Metric.panelWidth * Self.scale))
+            assertCardInsets(image)
         }
     }
+
+    /// Pace / projection / credit facts (synthetic, example.com only): fast burn on the hero's 5h
+    /// window (projection line), a row with a projection, low + critical levels, credit amounts with
+    /// expiry, an old read. Written as `pace-<scheme>.png`.
+    @Test func rendersPaceAndCredits() throws {
+        let now = StatePage.now
+        let h: TimeInterval = 3_600
+        let accounts = [
+            Account(provider: "p", name: "Claude Code", plan: "max", user: "alpha@example.com",
+                    windows: [QuotaWindow(name: "5 hours", used: 72, remaining: 28, resetsAt: now.addingTimeInterval(3 * h)),
+                              QuotaWindow(name: "7 days", used: 30, remaining: 70, resetsAt: now.addingTimeInterval(120 * h))],
+                    readAt: now.addingTimeInterval(-60)),
+            Account(provider: "p", name: "Claude Code", plan: "max", user: "beta@example.com",
+                    windows: [QuotaWindow(name: "5 hours", used: 40, remaining: 60, resetsAt: now.addingTimeInterval(4 * h)),
+                              QuotaWindow(name: "7 days", used: 75, remaining: 25, resetsAt: now.addingTimeInterval(110 * h))],
+                    readAt: now.addingTimeInterval(-60)),
+            Account(provider: "c", name: "WorkBuddy AI", plan: "Free plan", user: "gamma@example.com",
+                    windows: [QuotaWindow(name: "Credits", used: 25.7, remaining: 74.3, resetsAt: now.addingTimeInterval(400 * h),
+                                          display: "64.3 / 250", unit: "credits"),
+                              QuotaWindow(name: "Extra credits", used: 92, remaining: 8, display: "276 / 300",
+                                          unit: "credits", runsOutAt: now.addingTimeInterval(170 * h))],
+                    readAt: now.addingTimeInterval(-3 * h)),
+        ]
+        let snap = PanelSnapshot(accounts: accounts, fetchedAt: StatePage.fetchedAt)
+        for scheme in [ColorScheme.dark, .light] {
+            let view = StatePageFrame { QuotaPanel(state: .content(snap)).environment(\.panelNow, now) }
+            let image = try render(view: view, name: "pace", scheme: scheme, mode: .snapshotFull)
+            #expect(image.width == Int(Metric.panelWidth * Self.scale))
+        }
+    }
+
+    /// Card layers over an unblurred synthetic backdrop: composition stress only, NOT the real panel glass.
+    /// ImageRenderer cannot draw AppKit's behind-window effect. Native captures supply material evidence.
+    @Test func rendersGlassOverColourfulBackdrop() throws {
+        for scheme in [ColorScheme.dark, .light] {
+            let view = StatePage.content.panel()
+                .background(LinearGradient(colors: Self.backdrop, startPoint: .topLeading, endPoint: .bottomTrailing))
+            let image = try render(view: view, name: "glass-backdrop", scheme: scheme, mode: .snapshot)
+            #expect(image.width == Int(Metric.panelWidth * Self.scale))
+        }
+    }
+
+    /// Reduce Transparency and Increase Contrast fall back to the solid `cardFill` (`rt-*` / `ic-*`, content page).
+    @Test func rendersSolidCardFallbacks() throws {
+        for scheme in [ColorScheme.dark, .light] {
+            let rt = StatePageFrame { StatePage.content.panel() }.environment(\._accessibilityReduceTransparency, true)
+            _ = try render(view: rt, name: "rt-content", scheme: scheme, mode: .snapshot)
+            let ic = StatePageFrame { StatePage.content.panel() }.environment(\._colorSchemeContrast, .increased)
+            _ = try render(view: ic, name: "ic-content", scheme: scheme, mode: .snapshot)
+        }
+        // Not rendered over the colourful backdrop: cardFill is translucent by design and relies on the system
+        // making the panel background opaque under Reduce Transparency (live-only behaviour).
+    }
+
+    /// Synthetic wallpaper stand-in (test-only colours): white, yellow, cyan, magenta, blue, black.
+    static let backdrop: [Color] = [
+        Color(red: 1, green: 1, blue: 1), Color(red: 1, green: 0.9, blue: 0), Color(red: 0, green: 0.9, blue: 1),
+        Color(red: 1, green: 0.18, blue: 0.58), Color(red: 0.12, green: 0.25, blue: 1), Color(red: 0, green: 0, blue: 0),
+    ]
 
     @Test func contentIsTallerThanEmpty() throws {
         let content = try render(page: .content, scheme: .dark, mode: .snapshot, write: false)
@@ -85,6 +146,17 @@ import Testing
             try rep.representation(using: .png, properties: [:])?.write(to: url)
         }
         return image
+    }
+
+    private func assertCardInsets(_ image: CGImage) {
+        let rep = NSBitmapImageRep(cgImage: image)
+        let y = Int(80 * Self.scale) // below the first card's rounded corner; clear of its text
+        let outer = Int((Space.m / 2) * Self.scale)
+        let inside = Int((Space.m + Space.xxs) * Self.scale)
+        let left = rep.colorAt(x: outer, y: y)
+        let right = rep.colorAt(x: image.width - 1 - outer, y: y)
+        #expect(left == right, "both side gutters must have the same untouched backdrop")
+        #expect(left != rep.colorAt(x: inside, y: y), "card surface must start inside its 12pt gutter")
     }
 
     private func isBlank(_ image: CGImage) -> Bool {

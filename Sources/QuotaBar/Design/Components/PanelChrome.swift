@@ -66,10 +66,13 @@ struct StatusLine: View {
             Text(text)
         }
         .font(TypeRole.status)
-        .foregroundStyle(Palette.textSecondary)
+        // Stale: amber text as well as the glyph, so "couldn't refresh" is not colour-only or easy to miss.
+        .foregroundStyle(isStale ? Palette.lowText : Palette.textSecondary)
         .fixedSize(horizontal: false, vertical: true)
         .help(help)
     }
+
+    private var isStale: Bool { if case .stale = state { true } else { false } }
 
     private var text: String {
         if isRefreshing, case .loading = state { return "Loading…" }
@@ -98,7 +101,7 @@ struct PanelFooter: View {
             HStack {
                 Text("Open Magpie").font(TypeRole.row).foregroundStyle(Palette.textPrimary)
                 Spacer()
-                Text("⌘⇧M").font(TypeRole.meta).foregroundStyle(Palette.textTertiary)
+                Text("⌘⇧M").font(TypeRole.meta).foregroundStyle(Palette.textSecondary)
             }
             .padding(.horizontal, Space.m)
             .frame(minHeight: Metric.rowHeight + Space.s)
@@ -146,25 +149,28 @@ struct StateMessage: View {
     }
 }
 
-/// Static placeholder (no shimmer: no continuous animation in a transient panel).
+/// Static placeholder cards (no shimmer: no continuous animation in a transient panel).
 struct LoadingPlaceholder: View {
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.m) {
+        VStack(alignment: .leading, spacing: Space.s) {
             ForEach(Array(Metric.skeletonWidths.enumerated()), id: \.offset) { _, width in
-                HStack(spacing: Space.s) {
-                    QuotaRing(remaining: nil)
-                    VStack(alignment: .leading, spacing: Space.xs) {
-                        RoundedRectangle(cornerRadius: Radius.skeleton).fill(Palette.skeleton)
-                            .frame(width: width, height: Metric.skeletonLine)
-                        RoundedRectangle(cornerRadius: Radius.skeleton).fill(Palette.skeleton)
-                            .frame(width: width / 2, height: Metric.skeletonLine)
+                Card {
+                    VStack(alignment: .leading, spacing: Space.s) {
+                        HStack {
+                            RoundedRectangle(cornerRadius: Radius.skeleton).fill(Palette.skeleton)
+                                .frame(width: width, height: Metric.skeletonLine)
+                            Spacer()
+                            RoundedRectangle(cornerRadius: Radius.skeleton).fill(Palette.skeleton)
+                                .frame(width: Metric.valueColumn, height: Metric.skeletonLine * 2)
+                        }
+                        Capsule().fill(Palette.skeleton).frame(height: Metric.barHeight)
                     }
                 }
             }
         }
-        .padding(.horizontal, Space.m)
-        .padding(.vertical, Space.m)
+        .padding(Space.m)
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Loading quotas")
     }
 }
@@ -180,7 +186,11 @@ struct BoundedScroll<Content: View>: View {
         switch mode {
         case .interactive:
             ScrollView(.vertical) {
-                content.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
+                content
+                    // MenuBarExtra extends native scrolling past its content bounds. Constrain the
+                    // document width explicitly so that extension cannot widen the provider cards.
+                    .frame(width: Metric.panelWidth)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
             .scrollBounceBehavior(.basedOnSize)
             .frame(height: min(contentHeight, Metric.scrollCap))

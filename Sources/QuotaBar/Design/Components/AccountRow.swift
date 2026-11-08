@@ -20,20 +20,25 @@ struct AccountRow: View {
     }
 
     private var quotaLine: some View {
-        HStack(spacing: Space.s) {
-            nameAndBadges
-            UsageBar(remaining: account.binding?.remaining)
-            Text("\(Presenter.percent(account.binding?.remaining))%")
-                .font(TypeRole.rowValue)
-                .foregroundStyle(QuotaLevel(remaining: account.binding?.remaining).text)
-                .fixedSize()
-                .frame(minWidth: Metric.valueColumn, alignment: .trailing)
-            // Window label: abbreviated by rule, then wraps (never ellipsized).
-            Text(account.binding?.short ?? "")
-                .font(TypeRole.meta)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(width: Metric.windowColumn, alignment: .leading)
+        let binding = account.binding
+        let projection = binding.flatMap { Pace.projectedRunOut($0, readAt: account.readAt, now: now) }
+        return VStack(alignment: .leading, spacing: Space.hair) {
+            HStack(spacing: Space.s) {
+                nameAndBadges
+                UsageBar(remaining: binding?.remaining, pace: binding.flatMap { Pace.elapsed($0, at: now) })
+                Text("\(Presenter.percent(binding?.remaining))%")
+                    .font(TypeRole.rowValue)
+                    .foregroundStyle(QuotaLevel(remaining: binding?.remaining).text)
+                    .fixedSize()
+                    .frame(minWidth: Metric.valueColumn, alignment: .trailing)
+                // Window label: abbreviated by rule, then wraps (never ellipsized).
+                Text(binding?.short ?? "")
+                    .font(TypeRole.meta)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: Metric.trailingColumn, alignment: .leading)
+            }
+            if let projection { ProjectionNote(date: projection) }
         }
         .padding(.vertical, Space.xxs)
     }
@@ -52,7 +57,7 @@ struct AccountRow: View {
             if let note = account.note {
                 Text(note)
                     .font(TypeRole.meta)
-                    .foregroundStyle(account.status == .error ? Palette.textSecondary : Palette.textTertiary)
+                    .foregroundStyle(Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -75,12 +80,7 @@ struct AccountRow: View {
 
     private var tooltip: String {
         var lines = [account.label]
-        lines += account.windows.map { w in
-            var s = "\(w.name): \(Presenter.percent(w.remaining))% left"
-            if let d = w.display { s += " (\(d))" }
-            if let r = w.resetsAt { s += " · resets in \(Fmt.duration(from: now, to: r)) (\(Fmt.dayTime(r, tz: tz)))" }
-            return s
-        }
+        lines += account.windows.map { WindowText.tooltip($0, readAt: account.readAt, now: now, tz: tz) }
         if let until = account.until { lines.append("Until \(Fmt.dayTime(until, tz: tz))") }
         if account.resetCredits > 0 {
             var s = "\(account.resetCredits) reset credit\(account.resetCredits == 1 ? "" : "s")"
@@ -124,10 +124,17 @@ struct AccountBadges: View {
                 .accessibilityLabel("\(account.resetCredits) reset credits")
             }
             if let read = account.readAt, now.timeIntervalSince(read) > QuotaRules.oldRead {
-                Image(systemName: "clock")
-                    .font(TypeRole.chip)
-                    .foregroundStyle(Palette.textTertiary)
-                    .accessibilityLabel("Quota read \(Fmt.duration(from: read, to: now)) ago")
+                // Old read: glyph + age, so freshness is readable without hovering.
+                HStack(spacing: Space.hair) {
+                    Image(systemName: "clock")
+                    Text("\(Fmt.duration(from: read, to: now)) ago")
+                }
+                .font(TypeRole.chip)
+                .foregroundStyle(Palette.textSecondary)
+                .fixedSize()
+                .help("Quota last read \(Fmt.duration(from: read, to: now)) ago; it may have changed since")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Quota read \(Fmt.duration(from: read, to: now)) ago")
             }
         }
     }

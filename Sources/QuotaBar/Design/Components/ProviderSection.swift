@@ -1,15 +1,14 @@
 import SwiftUI
 
-/// Provider header: ring + name/plan + "Most left · <account>" + hero value and window chips.
+/// Provider header: name + plan chip, "Most left · <account>" subtitle, and the one dominant number.
 struct ProviderHeader: View {
     var provider: ProviderVM
 
     var body: some View {
         HStack(alignment: .center, spacing: Space.s) {
-            QuotaRing(remaining: provider.hero?.binding?.remaining)
-            VStack(alignment: .leading, spacing: Space.hair) {
+            VStack(alignment: .leading, spacing: Space.xxs) {
                 // Provider name wraps rather than truncates; the plan chip drops to its own line
-                // when name + chip do not fit beside the stat column.
+                // when name + chip do not fit beside the hero number.
                 RowOrStack {
                     Text(provider.name)
                         .font(TypeRole.provider)
@@ -20,21 +19,9 @@ struct ProviderHeader: View {
                 subtitle
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            if let hero = provider.hero {
-                // Stat column: never compressed. Two window chips sit side by side up to
-                // Metric.heroColumn, otherwise they stack (right-aligned).
-                VStack(alignment: .trailing, spacing: Space.hair) {
-                    Text("\(Presenter.percent(hero.binding?.remaining))%")
-                        .font(TypeRole.heroValue)
-                        .foregroundStyle(QuotaLevel(remaining: hero.binding?.remaining).text)
-                        .fixedSize()
-                    RowOrStack(alignment: .trailing, maxRow: Metric.heroColumn) {
-                        ForEach(provider.chips) { WindowChip(window: $0) }
-                    }
-                    .fixedSize()
-                }
+            // Never compressed; the left column yields.
+            HeroValue(remaining: provider.hero?.binding?.remaining)
                 .layoutPriority(1)
-            }
         }
         .accessibilityElement(children: .combine)
     }
@@ -53,35 +40,131 @@ struct ProviderHeader: View {
             .font(TypeRole.meta)
             .foregroundStyle(Palette.textSecondary)
         } else if let note = provider.headerNote {
-            Text(note)
-                .font(TypeRole.meta)
-                .foregroundStyle(Palette.textSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .help(note)
+            HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
+                if provider.headerIsError {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(Palette.low)
+                        .accessibilityLabel("Problem")
+                }
+                Text(note).fixedSize(horizontal: false, vertical: true)
+            }
+            .font(TypeRole.meta)
+            .foregroundStyle(Palette.textSecondary)
+            .help(note)
         }
     }
 }
 
-/// Header, other usable accounts, folded nearly-empty group, then problem accounts.
+/// One hero window: label · flexible bar with even-pace tick · value · reset time,
+/// plus fact lines (amount used, credit expiry, run-out projection) when the payload has them.
+struct WindowMeter: View {
+    var window: WindowVM
+    var readAt: Date?
+    @Environment(\.panelNow) private var now
+    @Environment(\.timeZone) private var tz
+
+    var body: some View {
+        let projection = Pace.projectedRunOut(window, readAt: readAt, now: now)
+        VStack(alignment: .leading, spacing: Space.hair) {
+            HStack(spacing: Space.s) {
+                Text(window.short)
+                    .font(TypeRole.meterLabel)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: Metric.meterLabelColumn, alignment: .leading)
+                UsageBar(remaining: window.remaining, pace: Pace.elapsed(window, at: now), width: nil)
+                Text("\(Presenter.percent(window.remaining))%")
+                    .font(TypeRole.rowValue)
+                    .foregroundStyle(window.level.text)
+                    .fixedSize()
+                    .frame(minWidth: Metric.valueColumn, alignment: .trailing)
+                Text(window.resetsAt.map { "resets \(Fmt.duration(from: now, to: $0))" } ?? "")
+                    .font(TypeRole.detail)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: Metric.trailingColumn, alignment: .leading)
+            }
+            .frame(minHeight: Metric.rowHeight)
+            let facts = [window.amountText, window.runsOutAt.map { "expires \(Fmt.day($0, tz: tz))" }]
+                .compactMap { $0 }
+            if !facts.isEmpty {
+                Text(facts.joined(separator: " · "))
+                    .font(TypeRole.detail)
+                    .foregroundStyle(Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.leading, Metric.meterLabelColumn + Space.s)
+            }
+            if let projection {
+                ProjectionNote(date: projection)
+                    .padding(.leading, Metric.meterLabelColumn + Space.s)
+            }
+        }
+        .help(WindowText.tooltip(window, readAt: readAt, now: now, tz: tz))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// "may run out ~14:05": fact-only linear projection, amber text + glyph (never colour alone).
+struct ProjectionNote: View {
+    var date: Date
+    @Environment(\.panelNow) private var now
+    @Environment(\.timeZone) private var tz
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.xs) {
+            Image(systemName: "speedometer").accessibilityHidden(true)
+            Text("may run out ~\(Fmt.when(date, now: now, tz: tz))")
+        }
+        .font(TypeRole.detail)
+        .foregroundStyle(Palette.lowText)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// Shared tooltip text for a window (meters and rows). Full name, never abbreviated.
+enum WindowText {
+    static func tooltip(_ w: WindowVM, readAt: Date?, now: Date, tz: TimeZone) -> String {
+        var s = "\(w.name): \(Presenter.percent(w.remaining))% left"
+        if let a = w.amountText { s += " (\(a))" }
+        if let r = w.resetsAt { s += " · resets in \(Fmt.duration(from: now, to: r)) (\(Fmt.dayTime(r, tz: tz)))" }
+        if let e = Pace.elapsed(w, at: now) {
+            s += "\n  Tick = even pace: \(Int((e * 100).rounded()))% of the window has passed"
+        }
+        if let p = Pace.projectedRunOut(w, readAt: readAt, now: now) {
+            s += "\n  At this pace it may run out ~\(Fmt.when(p, now: now, tz: tz)), before it resets"
+        }
+        if let x = w.runsOutAt { s += "\n  Credits expire \(Fmt.dayTime(x, tz: tz))" }
+        return s
+    }
+}
+
+/// Card: header, hero meters, then other usable accounts, folded nearly-empty group, problem accounts.
 struct ProviderSection: View {
     var provider: ProviderVM
     @Binding var isExpanded: Bool
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.xs) {
-            ProviderHeader(provider: provider)
-            if !provider.rows.isEmpty || !provider.nearlyEmpty.isEmpty || !provider.problems.isEmpty {
-                VStack(alignment: .leading, spacing: 0) {
-                    ForEach(provider.rows) { AccountRow(account: $0) }
-                    if !provider.nearlyEmpty.isEmpty {
-                        NearlyEmptyGroup(accounts: provider.nearlyEmpty, isExpanded: $isExpanded)
+        Card {
+            VStack(alignment: .leading, spacing: Space.s) {
+                ProviderHeader(provider: provider)
+                if let hero = provider.hero, !provider.heroWindows.isEmpty {
+                    VStack(alignment: .leading, spacing: Space.xxs) {
+                        ForEach(provider.heroWindows) { WindowMeter(window: $0, readAt: hero.readAt) }
                     }
-                    ForEach(provider.problems) { AccountRow(account: $0) }
                 }
-                .padding(.leading, Metric.ring + Space.s)
+                if !provider.rows.isEmpty || !provider.nearlyEmpty.isEmpty || !provider.problems.isEmpty {
+                    Hairline()
+                    VStack(alignment: .leading, spacing: 0) {
+                        ForEach(provider.rows) { AccountRow(account: $0) }
+                        if !provider.nearlyEmpty.isEmpty {
+                            NearlyEmptyGroup(accounts: provider.nearlyEmpty, isExpanded: $isExpanded)
+                        }
+                        ForEach(provider.problems) { AccountRow(account: $0) }
+                    }
+                }
             }
         }
-        .padding(.vertical, Space.s)
+        .accessibilityElement(children: .contain)
     }
 }
 
@@ -108,14 +191,17 @@ struct NearlyEmptyGroup: View {
                         .foregroundStyle(Palette.textSecondary)
                     Spacer(minLength: Space.s)
                     Text(Presenter.range(accounts))
-                        .font(TypeRole.meta.monospacedDigit())
-                        .foregroundStyle(Palette.textSecondary)
+                        .font(TypeRole.rowValue)
+                        .foregroundStyle(Palette.criticalText)
+                        .frame(minWidth: Metric.valueColumn, alignment: .trailing)
+                    // Keeps the range in the shared value column.
+                    Color.clear.frame(width: Metric.trailingColumn + Space.xs, height: Metric.hairline)
                 }
                 .frame(minHeight: Metric.rowHeight)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("\(accounts.count) nearly empty accounts")
+            .accessibilityLabel("\(accounts.count) nearly empty accounts, \(Presenter.range(accounts))")
             .accessibilityValue(isExpanded ? "expanded" : "collapsed")
 
             if isExpanded {

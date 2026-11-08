@@ -55,9 +55,8 @@ struct ProviderList: View {
     @Binding var expanded: Set<String>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(providers.enumerated()), id: \.element.id) { index, provider in
-                if index > 0 { Hairline().padding(.leading, Metric.ring + Space.s) }
+        VStack(alignment: .leading, spacing: Space.s) {
+            ForEach(providers) { provider in
                 ProviderSection(provider: provider, isExpanded: Binding(
                     get: { expanded.contains(provider.id) },
                     set: { if $0 { expanded.insert(provider.id) } else { expanded.remove(provider.id) } }
@@ -65,6 +64,6 @@ struct ProviderList: View {
             }
         }
         .padding(.horizontal, Space.m)
-        .padding(.vertical, Space.xs)
+        .padding(.vertical, Space.m)
     }
 }

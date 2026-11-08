@@ -7,6 +7,10 @@ enum QuotaRules {
     static let nearlyEmpty: Double = 5   // <= 5 → folded into "N nearly empty"
     /// Account `readAt` older than this (vs. render `now`) gets a quiet "old read" glyph.
     static let oldRead: TimeInterval = 30 * 60
+    /// A linear run-out projection needs at least this much of the window elapsed (early pace is noise).
+    static let projectionMinElapsed: Double = 0.1
+    /// ...and must land at least this share of the window before the reset (no "runs out 1h before reset" noise).
+    static let projectionMinLead: Double = 0.1
 }
 
 enum QuotaLevel: Sendable, Equatable {
@@ -28,7 +32,23 @@ struct WindowVM: Sendable, Equatable, Identifiable {
     var remaining: Double?
     var resetsAt: Date?
     var display: String?
+    var unit: String?
+    /// Payload credit expiry (not a projection, not the window reset).
+    var runsOutAt: Date?
     var level: QuotaLevel { QuotaLevel(remaining: remaining) }
+
+    init(name: String, short: String? = nil, remaining: Double?, resetsAt: Date? = nil,
+         display: String? = nil, unit: String? = nil, runsOutAt: Date? = nil) {
+        self.name = name; self.short = short ?? Presenter.shortWindowName(name)
+        self.remaining = remaining; self.resetsAt = resetsAt
+        self.display = display; self.unit = unit; self.runsOutAt = runsOutAt
+    }
+
+    /// "7.56 / 250 credits used" from `display` + `unit`; nil without `display`.
+    var amountText: String? {
+        guard let display, !display.isEmpty else { return nil }
+        return unit.map { "\(display) \($0) used" } ?? "\(display) used"
+    }
 }
 
 struct AccountVM: Sendable, Equatable, Identifiable {
@@ -56,12 +76,15 @@ struct ProviderVM: Sendable, Equatable, Identifiable {
     var accountCount: Int
     /// Usable account with the highest binding remaining. A data fact, not a routing claim.
     var hero: AccountVM?
-    var chips: [WindowVM]
+    /// Hero windows drawn as meters (the two lowest, original order).
+    var heroWindows: [WindowVM]
     var rows: [AccountVM]
     var nearlyEmpty: [AccountVM]
     var problems: [AccountVM]
     /// Shown under the provider name when there is no hero (single error / no quota).
     var headerNote: String?
+    /// The header note is an account error (warning glyph), not "No quota reported".
+    var headerIsError: Bool = false
 }
 
 enum Presenter {
@@ -96,18 +119,19 @@ enum Presenter {
             plan: commonPlan.flatMap { stripProvider($0, name: name) },
             accountCount: vms.count,
             hero: hero,
-            chips: hero.map { chips(for: $0.windows) } ?? [],
+            heroWindows: hero.map { heroWindows(for: $0.windows) } ?? [],
             rows: rest.filter { $0.status == .usable },
             nearlyEmpty: rest.filter { $0.status == .nearlyEmpty },
             problems: hero == nil && problems.count == 1 ? [] : problems,
-            headerNote: hero == nil && problems.count == 1 ? problems[0].note : nil
+            headerNote: hero == nil && problems.count == 1 ? problems[0].note : nil,
+            headerIsError: hero == nil && problems.count == 1 && problems[0].status == .error
         )
     }
 
     static func account(_ a: Account, id: String, ordinal: Int, commonPlan: String?, hideEmails: Bool) -> AccountVM {
         let windows = a.windows.map {
-            WindowVM(name: $0.name, short: shortWindowName($0.name), remaining: $0.remaining,
-                     resetsAt: $0.resetsAt, display: $0.display)
+            WindowVM(name: $0.name, remaining: $0.remaining, resetsAt: $0.resetsAt,
+                     display: $0.display, unit: $0.unit, runsOutAt: $0.runsOutAt)
         }
         let binding = windows.filter { $0.remaining != nil }.min { $0.remaining! < $1.remaining! }
         let status: AccountVM.Status
@@ -175,8 +199,8 @@ enum Presenter {
         return trimmed.isEmpty ? name : trimmed
     }
 
-    /// Two lowest windows of the hero, in their original order.
-    static func chips(for windows: [WindowVM]) -> [WindowVM] {
+    /// Two lowest windows of the hero, in their original order (hero meters).
+    static func heroWindows(for windows: [WindowVM]) -> [WindowVM] {
         let known = windows.filter { $0.remaining != nil }
         guard known.count > 2 else { return known }
         let lowest = Set(known.sorted { $0.remaining! < $1.remaining! }.prefix(2).map(\.name))
@@ -207,5 +231,51 @@ enum Presenter {
         var counts: [String: Int] = [:]
         for v in values { counts[v, default: 0] += 1 }
         return values.first { counts[$0] == counts.values.max() }
+    }
+}
+
+/// Pace and projection (DESIGN.md › Pace). Pure; every value is recomputed from timestamps.
+enum Pace {
+    /// Window length parsed from its name: "5 hours", "Gemini · 7 days", "30 minutes", "2 weeks".
+    /// nil when the name carries no duration (e.g. "Month", "Credits").
+    static func windowLength(_ name: String) -> TimeInterval? {
+        guard let m = name.firstMatch(of: /(?i)(\d+)\s*(minute|hour|day|week)s?\b/),
+              let n = Double(m.output.1), n > 0 else { return nil }
+        let unit: TimeInterval = switch m.output.2.lowercased() {
+        case "minute": 60
+        case "hour": 3_600
+        case "day": 86_400
+        default: 604_800
+        }
+        return n * unit
+    }
+
+    /// Share of the window's time already gone at `date`: 1 − (resetsAt − date) / length.
+    /// nil when the length is unknown, `resetsAt` is missing, or the result falls outside 0…1.
+    static func elapsed(_ w: WindowVM, at date: Date) -> Double? {
+        guard let length = windowLength(w.name), let reset = w.resetsAt else { return nil }
+        let e = 1 - reset.timeIntervalSince(date) / length
+        return (0...1).contains(e) ? e : nil
+    }
+
+    /// used ÷ elapsed. > 1 means quota is burning faster than the clock.
+    static func ratio(_ w: WindowVM, at date: Date) -> Double? {
+        guard let r = w.remaining, let e = elapsed(w, at: date), e > 0 else { return nil }
+        return (100 - max(0, min(100, r))) / 100 / e
+    }
+
+    /// Linear projection: when, at the pace measured at `readAt` (else `now`), the window would empty.
+    /// Only returned when pace > 1, enough of the window has elapsed, quota is left, and the
+    /// projected time falls before the window resets. A fact about the trend, never advice.
+    static func projectedRunOut(_ w: WindowVM, readAt: Date?, now: Date) -> Date? {
+        let at = readAt ?? now
+        guard let r = w.remaining, r > 0, let reset = w.resetsAt, let length = windowLength(w.name),
+              let e = elapsed(w, at: at), e >= QuotaRules.projectionMinElapsed,
+              let pace = ratio(w, at: at), pace > 1 else { return nil }
+        let usedFraction = (100 - min(100, r)) / 100
+        let perSecond = usedFraction / (e * length)
+        let out = at.addingTimeInterval((min(100, r) / 100) / perSecond)
+        let lead = reset.timeIntervalSince(out) / length
+        return lead >= QuotaRules.projectionMinLead && out > now ? out : nil
     }
 }

@@ -111,6 +111,83 @@ import Testing
     }
 }
 
+/// DESIGN.md › Pace: window length parsing, even-pace tick, fact-only run-out projection.
+@Suite struct PaceTests {
+    let now = QuotaDate.parse("2026-11-05T20:00:00Z")!
+    let h: TimeInterval = 3_600
+
+    @Test func parsesWindowLength() {
+        #expect(Pace.windowLength("5 hours") == 5 * h)
+        #expect(Pace.windowLength("Gemini · 7 days") == 7.0 * 86_400)
+        #expect(Pace.windowLength("30 minutes") == 1_800)
+        #expect(Pace.windowLength("1 day") == 86_400)
+        #expect(Pace.windowLength("2 weeks") == 14.0 * 86_400)
+        #expect(Pace.windowLength("Month") == nil)
+        #expect(Pace.windowLength("Credits") == nil)
+        #expect(Pace.windowLength("Gemini 2.5 Flash") == nil)
+    }
+
+    @Test func elapsedFraction() throws {
+        let w = WindowVM(name: "5 hours", remaining: 47, resetsAt: now.addingTimeInterval(1 * h))
+        #expect(abs(try #require(Pace.elapsed(w, at: now)) - 0.8) < 1e-9)
+        #expect(Pace.elapsed(WindowVM(name: "5 hours", remaining: 47), at: now) == nil)          // no resetsAt
+        #expect(Pace.elapsed(WindowVM(name: "Month", remaining: 47, resetsAt: now), at: now) == nil)
+        // Outside the window (reset already passed, or further away than the window) → no tick.
+        #expect(Pace.elapsed(WindowVM(name: "5 hours", remaining: 47, resetsAt: now.addingTimeInterval(-60)), at: now) == nil)
+        #expect(Pace.elapsed(WindowVM(name: "5 hours", remaining: 47, resetsAt: now.addingTimeInterval(6 * h)), at: now) == nil)
+    }
+
+    @Test func projectionOnlyWhenBurningFasterAndBeforeReset() throws {
+        // 2h of 5h elapsed (0.4), 72% used → pace 1.8; 28% left at 36%/h → ~46.7 min.
+        let fast = WindowVM(name: "5 hours", remaining: 28, resetsAt: now.addingTimeInterval(3 * h))
+        let out = try #require(Pace.projectedRunOut(fast, readAt: now, now: now))
+        #expect(abs(out.timeIntervalSince(now) - 0.28 / 0.36 * h) < 1)
+        #expect(try #require(Pace.ratio(fast, at: now)) > 1)
+        // Slower than the clock → nothing.
+        let slow = WindowVM(name: "5 hours", remaining: 47, resetsAt: now.addingTimeInterval(1 * h))
+        #expect(Pace.projectedRunOut(slow, readAt: now, now: now) == nil)
+        // Exactly on pace (50% used, half elapsed) → nothing. (Linearly, pace > 1 always empties
+        // before the reset; the reset guard only matters at the boundary.)
+        let even = WindowVM(name: "5 hours", remaining: 50, resetsAt: now.addingTimeInterval(2.5 * h))
+        #expect(Pace.projectedRunOut(even, readAt: now, now: now) == nil)
+        // Barely faster (7d: 30% used, 28.6% elapsed): would empty ~8h before reset, < 10% lead → nothing.
+        let marginal = WindowVM(name: "7 days", remaining: 70, resetsAt: now.addingTimeInterval(120 * h))
+        #expect(Pace.projectedRunOut(marginal, readAt: now, now: now) == nil)
+        // Too early in the window, empty, or unknown length → nothing.
+        let early = WindowVM(name: "7 days", remaining: 90, resetsAt: now.addingTimeInterval(160 * h))
+        #expect(Pace.projectedRunOut(early, readAt: now, now: now) == nil)
+        let empty = WindowVM(name: "5 hours", remaining: 0, resetsAt: now.addingTimeInterval(3 * h))
+        #expect(Pace.projectedRunOut(empty, readAt: now, now: now) == nil)
+        let month = WindowVM(name: "Month", remaining: 5, resetsAt: now.addingTimeInterval(3 * h))
+        #expect(Pace.projectedRunOut(month, readAt: now, now: now) == nil)
+    }
+
+    @Test func projectionUsesReadTimeAndNeverReportsThePast() {
+        // Measured 2h ago at a pace that empties 47 min after the read → already past: no claim.
+        let w = WindowVM(name: "5 hours", remaining: 28, resetsAt: now.addingTimeInterval(1 * h))
+        #expect(Pace.projectedRunOut(w, readAt: now.addingTimeInterval(-2 * h), now: now) == nil)
+    }
+
+    @Test func fixtureCodexRowProjects() throws {
+        let providers = Presenter.providers(from: FixtureQuotaSource.loadSync().data, hideEmails: false)
+        let now = StatePage.now
+        let codex = try #require(providers.first { $0.id == "codex" })
+        let acct5 = try #require(codex.rows.first { $0.label == "account5" })
+        let out = try #require(Pace.projectedRunOut(acct5.binding!, readAt: acct5.readAt, now: now))
+        #expect(out < acct5.binding!.resetsAt!)
+        // Claude hero 5h: 53% used with 80% elapsed → on pace, no projection.
+        let claude = try #require(providers.first { $0.id == "claude" })
+        #expect(claude.heroWindows.allSatisfy { Pace.projectedRunOut($0, readAt: claude.hero?.readAt, now: now) == nil })
+    }
+
+    @Test func amountText() {
+        #expect(WindowVM(name: "Extra credits", remaining: 97, display: "7.56 / 250", unit: "credits").amountText
+                == "7.56 / 250 credits used")
+        #expect(WindowVM(name: "x", remaining: 1, display: "1 / 2").amountText == "1 / 2 used")
+        #expect(WindowVM(name: "5 hours", remaining: 1).amountText == nil)
+    }
+}
+
 @Suite struct TokenLintTests {
     @Test func noRawValuesOutsideTokens() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
