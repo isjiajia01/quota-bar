@@ -19,8 +19,8 @@ cp "$bin" "$app/Contents/MacOS/QuotaBar"
 printf 'APPL????' > "$app/Contents/PkgInfo"
 
 # LSUIElement: agent app, no Dock icon. ATS: exception for the loopback tunnel only —
-# no NSAllowsArbitraryLoads. ATS treatment of the literal 127.0.0.1 is verified by running
-# the packaged app against the live tunnel (docs/PLATFORM_CONSTRAINTS.md › Packaging).
+# no NSAllowsArbitraryLoads. One exception: the Tailscale MagicDNS name of the gateway.
+# No SSH tunnel: the app calls the gateway directly over Tailscale.
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -56,7 +56,7 @@ cat > "$app/Contents/Info.plist" <<PLIST
 		<true/>
 		<key>NSExceptionDomains</key>
 		<dict>
-			<key>127.0.0.1</key>
+			<key>oracle-fra.tail318c35.ts.net</key>
 			<dict>
 				<key>NSExceptionAllowsInsecureHTTPLoads</key>
 				<true/>
@@ -71,9 +71,15 @@ PLIST
 
 plutil -lint "$app/Contents/Info.plist"
 
-# Ad-hoc signature: enough for local launch, not for distribution/notarization.
-codesign --force --sign - --timestamp=none "$app"
+# Stable signature when a development identity exists: the Keychain ACL then survives a
+# rebuild (an ad-hoc signature changes per build and prompts again). Ad-hoc otherwise.
+identity="${QUOTABAR_SIGN_IDENTITY:-$(security find-identity -v -p codesigning 2>/dev/null | grep -m1 'Apple Development' | sed -E 's/.*"(.*)"/\1/')}"
+if [ -n "$identity" ]; then
+  codesign --force --sign "$identity" --timestamp=none "$app"
+else
+  codesign --force --sign - --timestamp=none "$app"
+fi
 codesign --verify --strict "$app"
 
 echo "package-app: $app"
-echo "package-app: bundle id $bundle_id · ad-hoc signed · run: open $app (or --fixture via Contents/MacOS/QuotaBar --fixture)"
+echo "package-app: bundle id $bundle_id · signed: ${identity:-ad-hoc} · run: open $app"

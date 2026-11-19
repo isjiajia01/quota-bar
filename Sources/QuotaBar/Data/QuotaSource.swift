@@ -1,12 +1,13 @@
 import Foundation
 import Observation
+import Security
 
 /// Data source boundary: one fetch per call, no scheduling policy.
 protocol QuotaSource: Sendable {
     func fetch() async throws -> QuotaPayload
 }
 
-enum QuotaSourceError: Error, Sendable { case http(Int), malformed }
+enum QuotaSourceError: Error, Sendable { case http(Int), malformed, noToken }
 
 /// Reads the scrubbed sample. Path is resolved from the source tree (dev/test only;
 /// a packaged app would need a resource bundle).
@@ -30,19 +31,24 @@ struct FixtureQuotaSource: QuotaSource {
     }
 }
 
-/// The tunnel endpoint. No auth: `ssh -N -L 13425:127.0.0.1:3425 oracle` forwards loopback only.
+/// The Magpie endpoint on the Tailscale address; the gateway authenticates a bearer token.
+/// No SSH tunnel: one HTTP call, no local forward to keep alive.
 struct LiveQuotaSource: QuotaSource {
-    static let endpoint = URL(string: "http://127.0.0.1:13425/v1/magpie/quotas")!
-    /// Bound on one attempt, a stalled tunnel included.
+    static let endpoint = URL(string: "http://oracle-fra.tail318c35.ts.net:3425/v1/magpie/quotas")!
+    /// Bound on one attempt.
     static let timeout: TimeInterval = 8
 
     var endpoint: URL = LiveQuotaSource.endpoint
     var timeout: TimeInterval = LiveQuotaSource.timeout
     var session: URLSession = .quotas
+    /// Injected in tests; the app reads the login Keychain.
+    var token: @Sendable () -> String? = MagpieToken.current
 
     func fetch() async throws -> QuotaPayload {
+        guard let bearer = token(), !bearer.isEmpty else { throw QuotaSourceError.noToken }
         var request = URLRequest(url: endpoint, timeoutInterval: timeout)
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("Bearer \(bearer)", forHTTPHeaderField: "Authorization")
         let (data, response) = try await session.data(for: request)
         if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
             throw QuotaSourceError.http(http.statusCode)
@@ -52,8 +58,32 @@ struct LiveQuotaSource: QuotaSource {
     }
 }
 
+/// The Magpie bearer token, read from the login Keychain. Never a file, a default or a log line.
+/// `QUOTABAR_TOKEN` exists for a development run only.
+enum MagpieToken {
+    static let service = "magpie-quota"
+    static let account = "quota-bar"
+
+    static func current() -> String? {
+        if let env = ProcessInfo.processInfo.environment["QUOTABAR_TOKEN"], !env.isEmpty { return env }
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: account,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var item: CFTypeRef?
+        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess,
+              let data = item as? Data,
+              let token = String(data: data, encoding: .utf8),
+              !token.isEmpty else { return nil }
+        return token
+    }
+}
+
 extension URLSession {
-    /// Ephemeral session for the tunnel: no cache, no connectivity waiting, bounded attempts.
+    /// Ephemeral session: no cache, no connectivity waiting, bounded attempts.
     static let quotas: URLSession = {
         let config = URLSessionConfiguration.ephemeral
         config.requestCachePolicy = .reloadIgnoringLocalCacheData
@@ -70,6 +100,8 @@ extension TransportIssue {
         switch error {
         case QuotaSourceError.http(let code): self = .http(code)
         case QuotaSourceError.malformed: self = .malformed
+        case QuotaSourceError.noToken:
+            self = .other("No Magpie token. Add it to Keychain: service magpie-quota, account quota-bar.")
         case let e as URLError where e.code == .timedOut: self = .timedOut
         case let e as URLError where [.cannotConnectToHost, .networkConnectionLost, .cannotFindHost, .notConnectedToInternet].contains(e.code):
             self = .unreachable

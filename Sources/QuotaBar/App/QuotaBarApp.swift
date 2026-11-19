@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Menu-bar app. Live tunnel by default; `--fixture` (or QUOTABAR_SOURCE=fixture) reads the sample.
+/// Menu-bar app. Live Magpie by default; `--fixture` (or QUOTABAR_SOURCE=fixture) reads the sample.
 /// Data lives at app lifetime (not in the transient panel's `.task`): one refresh loop, 60 s cadence.
 struct QuotaBarApp: App {
     @State private var store: QuotaStore

@@ -3,7 +3,7 @@ import Testing
 @testable import QuotaBar
 
 /// URLProtocol stub for the live source. Handlers are keyed by request URL, so tests that run
-/// in parallel never share one. No test here touches the real tunnel.
+/// in parallel never share one. No test here touches the real gateway.
 final class StubURLProtocol: URLProtocol, @unchecked Sendable {
     struct Reply: Sendable {
         var status: Int = 200
@@ -67,7 +67,7 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
 }
 
 /// Each test gets its own stub URL, so nothing here is order-dependent.
-enum StubTunnel {
+enum StubGateway {
     static func url(_ name: String) -> URL {
         URL(string: "http://127.0.0.1:13425/v1/magpie/quotas/\(name)")!
     }
@@ -82,8 +82,8 @@ enum StubTunnel {
         return URLSession(configuration: config)
     }
 
-    static func source(_ url: URL) -> LiveQuotaSource {
-        LiveQuotaSource(endpoint: url, timeout: 2, session: session())
+    static func source(_ url: URL, token: String? = "stub-token") -> LiveQuotaSource {
+        LiveQuotaSource(endpoint: url, timeout: 2, session: session(), token: { token })
     }
 }
 
@@ -93,12 +93,39 @@ private let oneAccountJSON = #"""
 """#
 
 @Suite struct LiveQuotaSourceTests {
-    @Test func decodesSuccessResponse() async throws {
-        let url = StubTunnel.url("success")
+    @Test func sendsBearerToken() async throws {
+        let url = StubGateway.url("auth-header")
+        let seen = HeaderBox()
+        StubURLProtocol.install(for: url) { request in
+            seen.value = request.value(forHTTPHeaderField: "Authorization")
+            return .json(oneAccountJSON)
+        }
+        defer { StubURLProtocol.uninstall(url) }
+
+        _ = try await StubGateway.source(url).fetch()
+        #expect(seen.value == "Bearer stub-token")
+    }
+
+    @Test func missingTokenFailsWithoutRequest() async throws {
+        let url = StubGateway.url("no-token")
         StubURLProtocol.install(for: url) { _ in .json(oneAccountJSON) }
         defer { StubURLProtocol.uninstall(url) }
 
-        let payload = try await StubTunnel.source(url).fetch()
+        do {
+            _ = try await StubGateway.source(url, token: nil).fetch()
+            Issue.record("expected noToken")
+        } catch QuotaSourceError.noToken {
+            // expected
+        }
+        #expect(StubURLProtocol.requestCount(url) == 0)
+    }
+
+    @Test func decodesSuccessResponse() async throws {
+        let url = StubGateway.url("success")
+        StubURLProtocol.install(for: url) { _ in .json(oneAccountJSON) }
+        defer { StubURLProtocol.uninstall(url) }
+
+        let payload = try await StubGateway.source(url).fetch()
         #expect(payload.data.count == 1)
         #expect(payload.data[0].provider == "claude")
         #expect(payload.data[0].windows[0].remaining == 42.5)
@@ -106,12 +133,12 @@ private let oneAccountJSON = #"""
     }
 
     @Test func refusedConnectionIsUnreachable() async throws {
-        let url = StubTunnel.url("refused")
+        let url = StubGateway.url("refused")
         StubURLProtocol.install(for: url) { _ in throw URLError(.cannotConnectToHost) }
         defer { StubURLProtocol.uninstall(url) }
 
         do {
-            _ = try await StubTunnel.source(url).fetch()
+            _ = try await StubGateway.source(url).fetch()
             Issue.record("connection refusal must throw")
         } catch {
             #expect(TransportIssue(error) == .unreachable)
@@ -119,14 +146,14 @@ private let oneAccountJSON = #"""
     }
 
     @Test func nonSuccessStatusIsHTTPIssue() async throws {
-        let url = StubTunnel.url("http500")
+        let url = StubGateway.url("http500")
         StubURLProtocol.install(for: url) { _ in
             StubURLProtocol.Reply(status: 500, body: Data("{}".utf8))
         }
         defer { StubURLProtocol.uninstall(url) }
 
         do {
-            _ = try await StubTunnel.source(url).fetch()
+            _ = try await StubGateway.source(url).fetch()
             Issue.record("HTTP 500 must throw")
         } catch {
             #expect(TransportIssue(error) == .http(500))
@@ -134,12 +161,12 @@ private let oneAccountJSON = #"""
     }
 
     @Test func unreadableBodyIsMalformed() async throws {
-        let url = StubTunnel.url("malformed")
+        let url = StubGateway.url("malformed")
         StubURLProtocol.install(for: url) { _ in .json(#"{"data":"not a list"}"#) }
         defer { StubURLProtocol.uninstall(url) }
 
         do {
-            _ = try await StubTunnel.source(url).fetch()
+            _ = try await StubGateway.source(url).fetch()
             Issue.record("malformed body must throw")
         } catch {
             #expect(TransportIssue(error) == .malformed)
@@ -149,11 +176,11 @@ private let oneAccountJSON = #"""
 
 @MainActor @Suite struct QuotaStoreTests {
     @Test func firstSuccessIsContent() async throws {
-        let url = StubTunnel.url("store-content")
+        let url = StubGateway.url("store-content")
         StubURLProtocol.install(for: url) { _ in .json(oneAccountJSON) }
         defer { StubURLProtocol.uninstall(url) }
 
-        let store = QuotaStore(source: StubTunnel.source(url))
+        let store = QuotaStore(source: StubGateway.source(url))
         #expect(store.state == .loading)
         await store.refresh().value
         #expect(store.isRefreshing == false)
@@ -165,17 +192,17 @@ private let oneAccountJSON = #"""
     }
 
     @Test func firstFailureWithoutDataIsError() async throws {
-        let url = StubTunnel.url("store-first-refused")
+        let url = StubGateway.url("store-first-refused")
         StubURLProtocol.install(for: url) { _ in throw URLError(.cannotConnectToHost) }
         defer { StubURLProtocol.uninstall(url) }
 
-        let store = QuotaStore(source: StubTunnel.source(url))
+        let store = QuotaStore(source: StubGateway.source(url))
         await store.refresh().value
         #expect(store.state == .error(.unreachable))
     }
 
     @Test func timeoutKeepsLastSnapshotAsStale() async throws {
-        let url = StubTunnel.url("store-timeout")
+        let url = StubGateway.url("store-timeout")
         let phase = Phase()
         StubURLProtocol.install(for: url) { _ in
             if phase.matches(1) { return .json(oneAccountJSON) }
@@ -183,7 +210,7 @@ private let oneAccountJSON = #"""
         }
         defer { StubURLProtocol.uninstall(url) }
 
-        let store = QuotaStore(source: StubTunnel.source(url))
+        let store = QuotaStore(source: StubGateway.source(url))
         await store.refresh().value
         let good = try #require(store.state.snapshot)
         #expect(store.state == .content(good))
@@ -200,7 +227,7 @@ private let oneAccountJSON = #"""
     }
 
     @Test func emptyPayloadIsEmptyStateAndLaterFailureIsError() async throws {
-        let url = StubTunnel.url("store-empty")
+        let url = StubGateway.url("store-empty")
         let phase = Phase()
         StubURLProtocol.install(for: url) { _ in
             if phase.matches(1) { return .json(#"{"data":[]}"#) }
@@ -208,7 +235,7 @@ private let oneAccountJSON = #"""
         }
         defer { StubURLProtocol.uninstall(url) }
 
-        let store = QuotaStore(source: StubTunnel.source(url))
+        let store = QuotaStore(source: StubGateway.source(url))
         await store.refresh().value
         guard case .empty = store.state else {
             Issue.record("expected empty, got \(store.state)")
@@ -222,14 +249,14 @@ private let oneAccountJSON = #"""
     }
 
     @Test func supersededRefreshNeverReportsAnError() async throws {
-        let url = StubTunnel.url("store-supersede")
+        let url = StubGateway.url("store-supersede")
         StubURLProtocol.install(for: url) { _ in
             Thread.sleep(forTimeInterval: 0.2)  // keep the first attempt in flight
             return .json(oneAccountJSON)
         }
         defer { StubURLProtocol.uninstall(url) }
 
-        let store = QuotaStore(source: StubTunnel.source(url))
+        let store = QuotaStore(source: StubGateway.source(url))
         let first = store.refresh()
         let second = store.refresh()  // cancels the first
         await first.value
@@ -241,11 +268,11 @@ private let oneAccountJSON = #"""
     }
 
     @Test func autoRefreshRefetchesOnIntervalAndStops() async throws {
-        let url = StubTunnel.url("store-loop")
+        let url = StubGateway.url("store-loop")
         StubURLProtocol.install(for: url) { _ in .json(oneAccountJSON) }
         defer { StubURLProtocol.uninstall(url) }
 
-        let store = QuotaStore(source: StubTunnel.source(url))
+        let store = QuotaStore(source: StubGateway.source(url))
         store.startAutoRefresh(interval: 0.05)
         for _ in 0..<200 where StubURLProtocol.requestCount(url) < 3 {
             try await Task.sleep(for: .milliseconds(10))
@@ -273,5 +300,15 @@ final class Phase: @unchecked Sendable {
     func set(_ phase: Int) {
         lock.lock(); defer { lock.unlock() }
         value = phase
+    }
+}
+
+/// Records the last Authorization header a stub saw.
+final class HeaderBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: String?
+    var value: String? {
+        get { lock.lock(); defer { lock.unlock() }; return stored }
+        set { lock.lock(); defer { lock.unlock() }; stored = newValue }
     }
 }
