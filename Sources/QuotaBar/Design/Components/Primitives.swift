@@ -236,11 +236,18 @@ enum Fmt {
         return cal.isDate(date, inSameDayAs: now) ? clock(date, tz: tz) : dayTime(date, tz: tz)
     }
 
+    /// DateFormatter is costly to create and these run per row on every body pass: cache one per (format, zone).
+    /// NSCache is thread-safe itself; it is not Sendable-annotated, hence `nonisolated(unsafe)`.
+    nonisolated(unsafe) private static let formatters = NSCache<NSString, DateFormatter>()
+
     private static func formatter(_ format: String, _ tz: TimeZone) -> DateFormatter {
+        let key = "\(format)|\(tz.identifier)" as NSString
+        if let cached = formatters.object(forKey: key) { return cached }
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.timeZone = tz
         f.dateFormat = format
+        formatters.setObject(f, forKey: key)
         return f
     }
 }

@@ -1,7 +1,15 @@
 import Foundation
+import Synchronization
 
 /// RFC 3339 parser tolerant of 0 or 1–9 fractional digits (fixture uses none, 3, 6 and 9).
 enum QuotaDate {
+    /// Created once: every account and window timestamp is parsed on each refresh.
+    private static let isoFormatter = Mutex<ISO8601DateFormatter>({
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime]
+        return f
+    }())
+
     static func parse(_ string: String) -> Date? {
         // Split "2026-11-05T20:28:16.190556575Z" into base + fraction + zone.
         guard let tIndex = string.firstIndex(of: "T") else { return nil }
@@ -14,9 +22,7 @@ enum QuotaDate {
             fraction = Double("0." + digits) ?? 0
             base = String(string[..<dot]) + String(afterDot.dropFirst(digits.count))
         }
-        let formatter = ISO8601DateFormatter()
-        formatter.formatOptions = [.withInternetDateTime]
-        guard let date = formatter.date(from: base) else { return nil }
+        guard let date = isoFormatter.withLock({ $0.date(from: base) }) else { return nil }
         return date.addingTimeInterval(fraction)
     }
 }
