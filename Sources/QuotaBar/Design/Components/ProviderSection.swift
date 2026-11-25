@@ -3,6 +3,7 @@ import SwiftUI
 /// Provider header: name + plan chip, "Most left · <account>" subtitle, and the one dominant number.
 struct ProviderHeader: View {
     var provider: ProviderVM
+    @Environment(\.providerAccent) private var accent
 
     var body: some View {
         HStack(alignment: .center, spacing: Space.s) {
@@ -10,10 +11,16 @@ struct ProviderHeader: View {
                 // Provider name wraps rather than truncates; the plan chip drops to its own line
                 // when name + chip do not fit beside the hero number.
                 RowOrStack {
-                    Text(provider.name)
-                        .font(TypeRole.provider)
-                        .foregroundStyle(Palette.textPrimary)
-                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(alignment: .center, spacing: Space.xs + Space.xxs) {
+                        // Provider identity dot (accent); decorative, the name carries the meaning.
+                        Circle().fill(accent.solid)
+                            .frame(width: Metric.dot, height: Metric.dot)
+                            .accessibilityHidden(true)
+                        Text(provider.name)
+                            .font(TypeRole.provider)
+                            .foregroundStyle(Palette.textPrimary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
                     if let plan = provider.plan { Chip(plan) }
                 }
                 subtitle
@@ -164,6 +171,7 @@ struct ProviderSection: View {
                 }
             }
         }
+        .environment(\.providerAccent, Palette.accent(forProvider: provider.id))
         .accessibilityElement(children: .contain)
     }
 }

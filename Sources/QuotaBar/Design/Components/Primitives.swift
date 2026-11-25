@@ -8,14 +8,16 @@ enum PanelRenderMode: Sendable { case interactive, snapshot, snapshotFull }
 extension EnvironmentValues {
     @Entry var panelRenderMode: PanelRenderMode = .interactive
     @Entry var panelNow: Date = .now
+    /// The enclosing provider card's accent (set by `ProviderSection`).
+    @Entry var providerAccent: ProviderAccent = Palette.neutralAccent
 }
 
 extension QuotaLevel {
-    /// Bar fill: same-hue gradient token per level.
-    var fill: LinearGradient {
+    /// Bar fill: the provider accent while usable (healthy or low — low is carried by the amber
+    /// number); crimson overrides it at critical.
+    func fill(accent: ProviderAccent) -> LinearGradient {
         switch self {
-        case .healthy: Palette.healthyFill
-        case .low: Palette.lowFill
+        case .healthy, .low: accent.fill
         case .critical: Palette.criticalFill
         case .unknown: Palette.unknownFill
         }
@@ -37,6 +39,7 @@ struct UsageBar: View {
     var remaining: Double?
     var pace: Double? = nil
     var width: CGFloat? = Metric.barWidth
+    @Environment(\.providerAccent) private var accent
 
     var body: some View {
         let fraction = max(0, min(1, (remaining ?? 0) / 100))
@@ -45,7 +48,7 @@ struct UsageBar: View {
             ZStack(alignment: .leading) {
                 Capsule().fill(Palette.track).frame(height: Metric.barHeight)
                 Capsule()
-                    .fill(QuotaLevel(remaining: remaining).fill)
+                    .fill(QuotaLevel(remaining: remaining).fill(accent: accent))
                     .frame(width: fraction > 0 ? max(Metric.barHeight, w * fraction) : 0, height: Metric.barHeight)
                 if let elapsed = pace {
                     let x = w * (1 - elapsed)
@@ -63,8 +66,8 @@ struct UsageBar: View {
     }
 }
 
-/// Provider card surface: translucent spruce tint over the shared panel blur, edged by the
-/// gradient hairline. Reduce Transparency or Increase Contrast → the solid dynamic `cardFill`.
+/// Provider card surface: neutral lift over the shared panel glass, the provider accent wash and a
+/// flat hairline. Reduce Transparency or Increase Contrast → the solid dynamic `cardFill`.
 struct Card<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
@@ -76,22 +79,19 @@ struct Card<Content: View>: View {
     }
 }
 
-/// No per-card blur: these static colour layers reveal the panel's single behind-window material.
-/// Accessibility uses the solid card token over PanelBackdrop's opaque fallback.
+/// No per-card blur: a neutral lift, the provider's accent wash fading out by mid-card, and one flat
+/// hairline. Reduce Transparency or Increase Contrast → the solid `cardFill` (the wash is clear under HC).
 struct CardSurface: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast
+    @Environment(\.providerAccent) private var accent
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)
-        if reduceTransparency || contrast == .increased {
-            shape.fill(Palette.cardFill)
-                .overlay(shape.strokeBorder(Palette.cardStroke, lineWidth: Metric.cardStroke))
-        } else {
-            shape.fill(Palette.cardGlassTint)
-                .overlay(shape.fill(Palette.cardSheen))
-                .overlay(shape.strokeBorder(Palette.glassRim, lineWidth: Metric.glassRim))
-        }
+        let solid = reduceTransparency || contrast == .increased
+        shape.fill(solid ? Palette.cardFill : Palette.cardGlassTint)
+            .overlay(shape.fill(LinearGradient(colors: [accent.wash, .clear], startPoint: .top, endPoint: .center)))
+            .overlay(shape.strokeBorder(Palette.cardStroke, lineWidth: Metric.cardStroke))
     }
 }
 
