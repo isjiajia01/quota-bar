@@ -21,22 +21,40 @@ Status: **frozen**. New tokens or components only through designer `extend`.
 | Radius | bar 3 · skeleton 3 · chip 4 · card 10 (continuous) · page 10 (state-page frame) · panel 16 (live panel outline) |
 | Metric | panelWidth 392 · scrollCap 500 (panel ≈ 590 pt max) · bar 56×6 (hero meters flex) · paceTick 2 wide, 3 overhang · valueColumn 38 (min) · trailingColumn 80 (wraps) · meterLabelColumn 58 (wraps) · rowHeight 22 (min) · iconButton 24 · cardStroke 0.5 · dot 6 |
 | TypeRole | title=headline · status=caption · provider=body semibold · heroValue=title rounded semibold mono (+ heroUnit title3 for "%") · meta=subheadline · row=callout · rowValue=callout rounded semibold mono · meterLabel=subheadline medium · detail=caption mono · chip=caption mono · stateTitle · stateIcon=title2 |
-| Palette | "Spruce" (below). textPrimary=labelColor · textSecondary=opaque #2E3734 / #D2DCD8 (variable-backdrop contrast; see below) · textTertiary=×0.42 (**glyphs only, never text**) |
+| Palette | "Provider accents" (below). textPrimary=labelColor · textSecondary=opaque #36383D / #D4D6DB (variable-backdrop contrast; see below) · textTertiary=×0.42 (**glyphs only, never text**) |
 | Motion | `disclosure` snappy 0.18 s · `value` easeOut 0.25 s. Both become nil under Reduce Motion. No continuous animation. |
 
 Inherited colour scheme on one behind-window panel material; providers sit on translucent **cards** (see Card surface). No added shadows.
-**Palette "Spruce"** (colour pass 2026-11-08): one signature hue, spruce (desaturated blue-green), means healthy and tints
-every neutral (ink `#1C3E3A` light / mist `#C4E6DF` dark at low alpha). Low = ochre, critical = muted crimson. Bars: tinted
-track + same-hue gradient fill (deeper start → softer tip, only via `Palette.*Fill`). Every custom role is dynamic with light,
-dark and **Increase Contrast** variants (solid fills, deeper inks, 45 % strokes). Level is never colour-only (number beside bar).
+**Palette "Provider accents"** (extend 2026-11-25, owner request; replaces "Spruce"): every provider has its own accent,
+near its brand hue, so cards are recognisable at a glance. Neutrals are plain system greys (`#3C3C43` light / `#EBEBF5` dark at
+low alpha), with no tint. One hue per **provider**, never per model or window, so a card never turns into a rainbow.
+- **Where the accent appears:** a 6 pt dot before the provider name, a top-to-centre wash on the card (10 % light / 16 % dark,
+  clear under Increase Contrast), and the fill of every **healthy or low** bar (deeper start → softer tip, `ProviderAccent.fill`).
+- **Warnings override the accent where it matters:** critical (≤ 10) → crimson bar and crimson number; low (≤ 30) → the bar
+  keeps the accent, the number turns `lowText` amber. Level is never colour-only (the number sits beside every bar).
+- **Mapping** (`Palette.accent(forProvider:)`, by provider ID, case-insensitive): claude terracotta · codex jade · antigravity
+  Google blue · workbuddy-ai violet · workbuddy plum · zcode indigo · opencode-go / opencode-zen-free graphite. Any other ID takes
+  a stable pick (FNV-1a of the ID) from sky · plum · jade · indigo · violet · graphite: never terracotta, amber or crimson.
+- Every accent has light, dark and Increase Contrast variants (HC: one solid deeper/lighter ink for both stops).
+
+| Accent | Light start→tip | Dark start→tip | HC light · dark |
+|---|---|---|---|
+| terracotta | #C15F3C→#DE8B69 | #D97757→#F0A080 | #934022 · #FFB89C |
+| jade | #0E8A6C→#3AB290 | #16A380→#52D2AE | #05634C · #7EE8C8 |
+| googleBlue | #2F6EDB→#5F95EE | #407DE8→#84AFF9 | #184CAB · #AAC8FF |
+| violet | #7450D4→#9B82E9 | #8266DE→#B8A2F8 | #522FA0 · #CBBAFF |
+| plum | #A34592→#C774B6 | #BB5CA9→#E395D3 | #7A246B · #F5B4E8 |
+| indigo | #4852C4→#737BE0 | #5862D6→#9AA1F6 | #2D3599 · #B6BBFF |
+| sky | #0F82A8→#3FA8CB | #1E9CC4→#66C9E8 | #055E7C · #95DEF5 |
+| graphite | #555C66→#7E858F | #828993→#B8BFC9 | #2D3238 · #D6DBE1 |
 
 | Role | Light | Dark |
 |---|---|---|
-| fills healthy · low · critical (start→tip) | #388579→#5AA698 · #A66E1E→#CB9640 · #A63842→#C95E5F | #379285→#5CB6A7 · #A8762E→#DEAA56 · #AE474D→#E27A72 |
-| solid healthy · low · critical (glyph, dot) | #2E7D72 · #B07826 · #B4454B | #58B4A5 · #D6A04C · #DC6E69 |
+| critical fill (start→tip) | #A63842→#C95E5F | #AE474D→#E27A72 |
+| solid low · critical (glyph, dot) | #B07826 · #B4454B | #D6A04C · #DC6E69 |
 | lowText · criticalText | #4D3002 · #78202B | #F6CC84 · #FFB8AC |
-| track · chipFill · separator · card solid · stroke top→bottom · paceTick | ink 9 · 6.5 · 11 % · #FBFDFC 74 % · ink 7→12 % · #162422 80 % | mist 10 · 6 · 9 % · #D8ECE7 5 % · #E6F6F2 13→5.5 % · #F1F6F4 88 % |
-| cardGlassTint (no per-card material) | mist #F2F9F7 30 % | spruce ink #122C29 30 % |
+| track · chipFill · separator · paceTick | grey 10 · 7 · 12 % · #1D1D1F 80 % | grey 12 · 8 · 10 % · #F5F5F7 88 % |
+| cardGlassTint · cardFill (solid) · cardStroke | white 42 % · white 80 % · grey 10 % | white 6 % · white 6 % · white 9 % |
 | panelGlassTint (vibrancy fallback, over one `.hudWindow` NSVisualEffectView) | white 38 % | black 50 % |
 | panelLiquidTint (`NSGlassEffectView.tintColor`, macOS 26+) | white 22 % | black 28 % |
 
@@ -45,7 +63,8 @@ dark and **Increase Contrast** variants (solid fills, deeper inks, 45 % strokes)
   content view. macOS 26+: one `NSGlassEffectView` (system Liquid Glass, `panelLiquidTint`, radius `panel`). Older systems: one
   active `.behindWindow` `NSVisualEffectView`, `.hudWindow`, with `panelGlassTint`. No per-card material, custom blur, timer,
   animation or polling in production.
-- **Cards** = `cardGlassTint` + top-to-centre `cardSheen` + 1 pt gradient `glassRim`. Existing per-card material was removed.
+- **Cards** = `cardGlassTint` (or solid `cardFill`) + the provider's accent wash + one flat 0.5 pt `cardStroke`. The old sheen
+  and gradient rim were removed (they muddied the glass).
 - **No window workaround any more.** The old `PanelGlass` made three private `_NSGraphicsView`s inside `MenuBarExtraWindow`
   transparent. Owning the panel removes that dependency on a private hierarchy.
 - **Panel lifecycle** (`PanelController`): the SwiftUI tree is built on open and released on close (no hidden re-render, no view
@@ -134,7 +153,7 @@ Per-account errors live inside `content`/`stale`. They are never transport failu
 - **QuotaPanel** (template): header · hairline · body (`BoundedScroll` of provider cards, 8 pt apart, 12 pt inset) · hairline · footer. 392 pt.
 - **PanelHeader**: "Quota left", `StatusLine` (table above; "· refreshing…" appended), ↻ (Refresh / Retry when stale or error;
   dimmed while refreshing), ⋯ Menu (Hide emails, Quit ⌘Q).
-- **ProviderSection** = `Card` { **ProviderHeader** (name · plan chip / "Most left · label" + old-read badge │ **HeroValue**) ·
+- **ProviderSection** = `Card` { **ProviderHeader** (accent dot · name · plan chip / "Most left · label" + old-read badge │ **HeroValue**) ·
   ≤2 **WindowMeter**s (the hero's two lowest windows, payload order) · hairline · rows · **NearlyEmptyGroup** · problem rows }.
   A single-account provider shows only header + meters (label instead of "Most left"). A single error/no-quota provider puts the
   note (⚠ glyph for errors) under the name and "—" as its number.
