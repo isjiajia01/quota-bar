@@ -14,6 +14,10 @@ These declarations verify API existence, not undocumented window behavior. Apple
 
 ## Scene, layout, focus
 
+> **2026-11-25:** the app no longer uses `MenuBarExtra`. It owns an `NSStatusItem` and a borderless `NSPanel`
+> (App/PanelController.swift), which supplies the size, position and dismissal that `MenuBarExtra` lacks. The notes below
+> remain as the reason for that change; focus, dismissal and multi-display placement still need native run verification.
+
 - `MenuBarExtra` and `.window` style are available since macOS 13. It is a **Scene**, with content supplied as SwiftUI views. SwiftUI layout is proposed-size driven: constrain the content's width and height and put overflowing rows inside a bounded `ScrollView`. An unconstrained expanding scroll region is not a reliable intrinsic panel size.
 - There is **no public size, maximum-height, resize-handle, window-position, or presentation binding on MenuBarExtra itself** in UI:2092–2125. `isInserted` means the status item exists, not that its panel is open. Do not use it to track visibility or polling.
 - No universal numerical maximum panel height is documented in the inspected interface. The available display area varies with screen, scaling, Dock and menu bar; `NSScreen.visibleFrame` supplies available geometry. Any fixed designer height is an application choice, not an OS limit. Verify fit on the actual display; do not promise user resizing or that WindowGroup sizing modifiers affect this scene.

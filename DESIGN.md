@@ -1,6 +1,6 @@
 # QuotaBar — Design System (skeleton v2, FROZEN)
 
-A native SwiftUI `MenuBarExtra(.window)` panel showing quota left across Magpie accounts (replaces the Magpie flyout).
+A native SwiftUI panel (app-owned `NSStatusItem` + `NSPanel`; was `MenuBarExtra(.window)`) showing quota left across Magpie accounts (replaces the Magpie flyout).
 Platform rules are in `docs/PLATFORM_CONSTRAINTS.md`, which wins on conflict. v2 (extend 2026-11-08): cards, hero meters, pace,
 row 5h/7d window pair.
 Status: **frozen**. New tokens or components only through designer `extend`.
@@ -18,7 +18,7 @@ Status: **frozen**. New tokens or components only through designer `extend`.
 | Group | Values |
 |---|---|
 | Space | hair 1 · xxs 2 · xs 4 · s 8 · m 12 · l 16 |
-| Radius | bar 3 · skeleton 3 · chip 4 · card 10 (continuous) · page 10 (state-page frame and panel backdrop clip) |
+| Radius | bar 3 · skeleton 3 · chip 4 · card 10 (continuous) · page 10 (state-page frame) · panel 16 (live panel outline) |
 | Metric | panelWidth 392 · scrollCap 500 (panel ≈ 590 pt max) · bar 56×6 (hero meters flex) · paceTick 2 wide, 3 overhang · valueColumn 38 (min) · trailingColumn 80 (wraps) · meterLabelColumn 58 (wraps) · rowHeight 22 (min) · iconButton 24 · cardStroke 0.5 · dot 6 |
 | TypeRole | title=headline · status=caption · provider=body semibold · heroValue=title rounded semibold mono (+ heroUnit title3 for "%") · meta=subheadline · row=callout · rowValue=callout rounded semibold mono · meterLabel=subheadline medium · detail=caption mono · chip=caption mono · stateTitle · stateIcon=title2 |
 | Palette | "Spruce" (below). textPrimary=labelColor · textSecondary=opaque #2E3734 / #D2DCD8 (variable-backdrop contrast; see below) · textTertiary=×0.42 (**glyphs only, never text**) |
@@ -37,20 +37,22 @@ dark and **Increase Contrast** variants (solid fills, deeper inks, 45 % strokes)
 | lowText · criticalText | #4D3002 · #78202B | #F6CC84 · #FFB8AC |
 | track · chipFill · separator · card solid · stroke top→bottom · paceTick | ink 9 · 6.5 · 11 % · #FBFDFC 74 % · ink 7→12 % · #162422 80 % | mist 10 · 6 · 9 % · #D8ECE7 5 % · #E6F6F2 13→5.5 % · #F1F6F4 88 % |
 | cardGlassTint (no per-card material) | mist #F2F9F7 30 % | spruce ink #122C29 30 % |
-| panelGlassTint (over one `.hudWindow` NSVisualEffectView) | white 38 % | black 50 % |
+| panelGlassTint (vibrancy fallback, over one `.hudWindow` NSVisualEffectView) | white 38 % | black 50 % |
+| panelLiquidTint (`NSGlassEffectView.tintColor`, macOS 26+) | white 22 % | black 28 % |
 
 ## Panel and card surface (owner-authorized behind-window pass, 2026-11-08)
-- **PanelGlass** (App/): one active `.behindWindow` `NSVisualEffectView`, `.hudWindow` material, with one contrast tint.
-  Background windows are sampled by WindowServer. No per-card material, custom blur, timer, animation or polling in production.
+- **PanelBackdrop** (App/, extend 2026-11-25): the window is QuotaBar's own borderless `NSPanel`, so the backdrop is simply its
+  content view. macOS 26+: one `NSGlassEffectView` (system Liquid Glass, `panelLiquidTint`, radius `panel`). Older systems: one
+  active `.behindWindow` `NSVisualEffectView`, `.hudWindow`, with `panelGlassTint`. No per-card material, custom blur, timer,
+  animation or polling in production.
 - **Cards** = `cardGlassTint` + top-to-centre `cardSheen` + 1 pt gradient `glassRim`. Existing per-card material was removed.
-- **Window workaround:** runtime inspection on macOS 27.3 found `MenuBarExtraWindow` already clear/nonopaque, but the hosting
-  root prepends three full-size `_NSGraphicsView`s (the middle one opaque). `PanelGlass` recognises only this exact prefix,
-  makes it transparent (saving/restoring alpha), and leaves all content alone. Reconciles on attach/layout/key-window/appearance;
-  notifications are removed on detach. No private selectors, KVC, swizzling or deletion, but private class names/structure remain
-  OS-fragile. An unrecognised hierarchy retains its system backing and shows a solid fallback. Recheck after OS updates.
-- **Accessibility fallback:** Reduce Transparency or Increase Contrast hides the effect and supplies an opaque
-  `windowBackgroundColor` panel; cards use existing `cardFill`. The tint changes do not affect layout.
-- **Native contrast evidence:** fixture MenuBarExtra over a separate synthetic white/black window, screenshots converted to sRGB.
+- **No window workaround any more.** The old `PanelGlass` made three private `_NSGraphicsView`s inside `MenuBarExtraWindow`
+  transparent. Owning the panel removes that dependency on a private hierarchy.
+- **Panel lifecycle** (`PanelController`): the SwiftUI tree is built on open and released on close (no hidden re-render, no view
+  memory while closed). Dismissal: status item, Escape, a click in another app, focus loss, Space change, Open Magpie / ⌘⇧M.
+- **Accessibility fallback:** Reduce Transparency or Increase Contrast selects the opaque `windowBackgroundColor` backdrop
+  (chosen at each open); cards use existing `cardFill`. The tint changes do not affect layout.
+- **Native contrast evidence** (measured on the earlier vibrancy panel; **re-measure for Liquid Glass**): fixture panel over a separate synthetic white/black window, screenshots converted to sRGB.
   Dark over white / light over black: header primary 6.86 / 5.32, header secondary 5.73 / 5.10, card secondary 6.98 / 6.65,
   critical card text 5.92 / 5.58, chip text 4.58 / 7.97. Low text uses darker/lightened opaque ink for the stale header as well.
   These are measured fixtures, not an all-wallpaper guarantee. Re-measure material/tint changes; native compositor checks matter.

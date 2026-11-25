@@ -287,6 +287,68 @@ private let oneAccountJSON = #"""
     }
 }
 
+@MainActor @Suite struct QuotaStoreCadenceTests {
+    @Test func openingRefreshesOnlyWhenTheDataIsOld() async throws {
+        let url = StubGateway.url("store-open")
+        StubURLProtocol.install(for: url) { _ in .json(oneAccountJSON) }
+        defer { StubURLProtocol.uninstall(url) }
+
+        let store = QuotaStore(source: StubGateway.source(url))
+        store.panelDidOpen()  // no data yet: fetch now
+        #expect(store.isRefreshing)
+        for _ in 0..<200 where store.isRefreshing { try await Task.sleep(for: .milliseconds(10)) }
+        #expect(StubURLProtocol.requestCount(url) == 1)
+
+        store.panelDidClose()
+        store.panelDidOpen()  // fresh (well under 30 s): no extra fetch
+        #expect(store.isRefreshing == false)
+        #expect(StubURLProtocol.requestCount(url) == 1)
+        #expect(store.isPanelVisible)
+    }
+
+    @Test func pausedLoopFetchesNothingUntilEveryReasonClears() async throws {
+        let url = StubGateway.url("store-pause")
+        StubURLProtocol.install(for: url) { _ in .json(oneAccountJSON) }
+        defer { StubURLProtocol.uninstall(url) }
+
+        let store = QuotaStore(source: StubGateway.source(url))
+        store.setPaused(.systemSleep, true)
+        store.setPaused(.screensAsleep, true)
+        store.startAutoRefresh(interval: 0.02)
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(StubURLProtocol.requestCount(url) == 0)
+
+        store.setPaused(.systemSleep, false)  // screens still asleep
+        try await Task.sleep(for: .milliseconds(100))
+        #expect(StubURLProtocol.requestCount(url) == 0)
+
+        store.setPaused(.screensAsleep, false)
+        for _ in 0..<200 where StubURLProtocol.requestCount(url) < 1 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(StubURLProtocol.requestCount(url) >= 1)
+        store.stopAutoRefresh()
+    }
+
+    @Test func failuresAreCountedAndASuccessResetsThem() async throws {
+        let url = StubGateway.url("store-backoff")
+        let phase = Phase()
+        StubURLProtocol.install(for: url) { _ in
+            if phase.matches(1) { throw URLError(.timedOut) }
+            return .json(oneAccountJSON)
+        }
+        defer { StubURLProtocol.uninstall(url) }
+
+        let store = QuotaStore(source: StubGateway.source(url))
+        await store.refresh().value
+        await store.refresh().value
+        #expect(store.consecutiveFailures == 2)
+        phase.set(2)
+        await store.refresh().value
+        #expect(store.consecutiveFailures == 0)
+    }
+}
+
 /// Phase switch shared with a stub handler (the stub runs off the main actor).
 final class Phase: @unchecked Sendable {
     private let lock = NSLock()

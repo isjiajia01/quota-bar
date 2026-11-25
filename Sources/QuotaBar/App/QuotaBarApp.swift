@@ -2,16 +2,17 @@ import AppKit
 import SwiftUI
 
 /// Menu-bar app. Live Magpie by default; `--fixture` (or QUOTABAR_SOURCE=fixture) reads the sample.
-/// Data lives at app lifetime (not in the transient panel's `.task`): one refresh loop, 60 s cadence.
-struct QuotaBarApp: App {
-    @State private var store: QuotaStore
-    @AppStorage("hideEmails") private var hideEmails = false
-    /// One action for both entry points: the panel footer and ⌘⇧M (App/GlobalHotKey.swift).
-    private let openMagpie: OpenMagpieAction
+/// Data lives at app lifetime (QuotaStore); the panel's SwiftUI tree exists only while it is open
+/// (App/PanelController.swift). Cadence: RefreshPolicy (60 s open · 5 min closed · backoff · paused asleep).
+@MainActor
+final class QuotaBarAppDelegate: NSObject, NSApplicationDelegate {
+    private var store: QuotaStore?
+    private var panel: PanelController?
     /// Held for the process: the Carbon handler keeps only an unretained pointer to it.
-    private let hotKey: GlobalHotKey
+    private var hotKey: GlobalHotKey?
+    private var activity: SystemActivityMonitor?
 
-    init() {
+    func applicationDidFinishLaunching(_ notification: Notification) {
         let useFixture = CommandLine.arguments.contains("--fixture")
             || ProcessInfo.processInfo.environment["QUOTABAR_SOURCE"] == "fixture"
         #if DEBUG
@@ -21,43 +22,47 @@ struct QuotaBarApp: App {
         }
         #endif
         let store = QuotaStore(source: useFixture ? FixtureQuotaSource() : LiveQuotaSource())
-        store.startAutoRefresh()  // immediate fetch, then every 60 s; Retry/⟳ refresh on demand
-        _store = State(initialValue: store)
+        store.startAutoRefresh()  // immediate fetch, then RefreshPolicy.standard; Retry/⟳ on demand
+        self.store = store
+        activity = SystemActivityMonitor(store: store)
 
+        // One action for both entry points: the panel footer and ⌘⇧M (App/GlobalHotKey.swift).
         let openMagpie = OpenMagpieAction()
-        self.openMagpie = openMagpie
+        let panel = PanelController(store: store, openMagpie: openMagpie)
+        self.panel = panel
         // Carbon hot key: no Accessibility permission. Registration failure is logged once
         // inside `register()` and the app continues without the shortcut.
-        let hotKey = GlobalHotKey(action: { openMagpie() })
+        let hotKey = GlobalHotKey(action: { [weak panel] in
+            panel?.close()
+            openMagpie()
+        })
         hotKey.register()
         self.hotKey = hotKey
     }
+}
 
-    var body: some Scene {
-        MenuBarExtra {
-            QuotaPanel(
-                state: store.state,
-                isRefreshing: store.isRefreshing,
-                hideEmails: hideEmails,
-                actions: PanelActions(
-                    refresh: { store.refresh() },
-                    // No public dismiss exists for a MenuBarExtra panel, so the panel is not
-                    // closed here: activating Safari deactivates QuotaBar and the system drops
-                    // the transient panel (PLATFORM_CONSTRAINTS › focus and dismissal).
-                    openMagpie: { openMagpie() },
-                    setHideEmails: { hideEmails = $0 },
-                    quit: { NSApplication.shared.terminate(nil) }
-                )
-            )
-            .background(PanelGlass())
-        } label: {
-            // DESIGN.md specifies no status-item summary, so the label stays a template symbol
-            // (no text, no level colours in the menu bar).
-            Image(systemName: "gauge.with.dots.needle.33percent")
-                .accessibilityLabel("Quota left")
+/// Pauses polling while the Mac sleeps, the displays are off, or the user session is switched out.
+@MainActor
+final class SystemActivityMonitor {
+    private var tokens: [NSObjectProtocol] = []
+
+    init(store: QuotaStore) {
+        let center = NSWorkspace.shared.notificationCenter
+        let pairs: [(Notification.Name, RefreshPause, Bool)] = [
+            (NSWorkspace.willSleepNotification, .systemSleep, true),
+            (NSWorkspace.didWakeNotification, .systemSleep, false),
+            (NSWorkspace.screensDidSleepNotification, .screensAsleep, true),
+            (NSWorkspace.screensDidWakeNotification, .screensAsleep, false),
+            (NSWorkspace.sessionDidResignActiveNotification, .sessionInactive, true),
+            (NSWorkspace.sessionDidBecomeActiveNotification, .sessionInactive, false),
+        ]
+        tokens = pairs.map { name, reason, paused in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak store] _ in
+                MainActor.assumeIsolated { store?.setPaused(reason, paused) }
+            }
         }
-        .menuBarExtraStyle(.window)
     }
+    // Lives for the process (held by the app delegate), so the observers are never removed.
 }
 
 /// State-page viewer (regular window, Dock icon) for design review.
