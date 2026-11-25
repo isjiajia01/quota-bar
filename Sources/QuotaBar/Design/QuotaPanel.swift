@@ -55,9 +55,11 @@ struct ProviderList: View {
     @Binding var expanded: Set<String>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: Space.s) {
+        // Decided for the whole list, so unknown providers avoid each other's hues.
+        let accents = Palette.accents(for: providers.map(\.id))
+        return VStack(alignment: .leading, spacing: Space.s) {
             ForEach(providers) { provider in
-                ProviderSection(provider: provider, isExpanded: Binding(
+                ProviderSection(provider: provider, accent: accents[provider.id] ?? Palette.neutralAccent, isExpanded: Binding(
                     get: { expanded.contains(provider.id) },
                     set: { if $0 { expanded.insert(provider.id) } else { expanded.remove(provider.id) } }
                 ))

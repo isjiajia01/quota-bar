@@ -34,7 +34,10 @@ low alpha), with no tint. One hue per **provider**, never per model or window, s
   keeps the accent, the number turns `lowText` amber. Level is never colour-only (the number sits beside every bar).
 - **Mapping** (`Palette.accent(forProvider:)`, by provider ID, case-insensitive): claude terracotta · codex jade · antigravity
   Google blue · workbuddy-ai violet · workbuddy plum · zcode indigo · opencode-go / opencode-zen-free graphite. Any other ID takes
-  a stable pick (FNV-1a of the ID) from sky · plum · jade · indigo · violet · graphite: never terracotta, amber or crimson.
+  a fallback chosen per payload (`Palette.accents(for:)`): from sky · plum · jade · indigo · violet · lime, the one whose hue is
+  furthest from every hue already in use (known providers first, unknown IDs in sorted order; FNV-1a only breaks ties). Never
+  terracotta, amber or crimson. Only about two free hues exist beside the known set, so later newcomers repeat a colour; the
+  name on the card still identifies them. A dedicated colour needs a `knownAccents` entry.
 - Every accent has light, dark and Increase Contrast variants (HC: one solid deeper/lighter ink for both stops).
 
 | Accent | Light start→tip | Dark start→tip | HC light · dark |
@@ -47,6 +50,7 @@ low alpha), with no tint. One hue per **provider**, never per model or window, s
 | indigo | #4852C4→#737BE0 | #5862D6→#9AA1F6 | #2D3599 · #B6BBFF |
 | sky | #0F82A8→#3FA8CB | #1E9CC4→#66C9E8 | #055E7C · #95DEF5 |
 | graphite | #555C66→#7E858F | #828993→#B8BFC9 | #2D3238 · #D6DBE1 |
+| lime | #5E8412→#8FB43A | #9BC53D→#C6E67A | #405C0C · #DCF49A |
 
 | Role | Light | Dark |
 |---|---|---|

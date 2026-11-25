@@ -126,13 +126,43 @@ enum Palette {
 
     /// One accent per provider: the header dot, the card's top wash and every healthy/low bar fill.
     /// Known provider IDs map to a hue near their brand; any other ID takes a stable pick from
-    /// `fallbackAccents` (FNV-1a of the ID, so it never changes between launches). Critical overrides
+    /// `fallbackAccents`, chosen together for the whole payload (see `accents(for:)`). Critical overrides
     /// the accent with crimson; low keeps the accent bar and turns the number amber.
     static func accent(forProvider id: String) -> ProviderAccent {
-        if let known = knownAccents[id.lowercased()] { return known }
-        var hash: UInt32 = 0x811C_9DC5
-        for byte in id.lowercased().utf8 { hash = (hash ^ UInt32(byte)) &* 0x0100_0193 }
-        return fallbackAccents[Int(hash % UInt32(fallbackAccents.count))]
+        accents(for: [id])[id] ?? neutralAccent
+    }
+
+    /// Accents for one payload's providers, decided together. Known IDs keep their fixed hue. Unknown IDs
+    /// are taken in sorted order (so the result does not depend on payload order) and each gets the
+    /// fallback whose hue is furthest from every hue already in use; the FNV-1a pick only breaks ties.
+    /// Stable while the set of unknown IDs is unchanged. Once the free hues run out, colours repeat:
+    /// the provider name always stays on the card, so the colour is never the only identifier.
+    static func accents(for ids: [String]) -> [String: ProviderAccent] {
+        var result: [String: ProviderAccent] = [:]
+        let keys = Set(ids).sorted()
+        var claimed: [Double] = []
+        for id in keys {
+            if let known = knownAccents[id.lowercased()] {
+                result[id] = known
+                if let h = known.hue { claimed.append(h) }
+            }
+        }
+        for id in keys where result[id] == nil {
+            var hash: UInt32 = 0x811C_9DC5
+            for byte in id.lowercased().utf8 { hash = (hash ^ UInt32(byte)) &* 0x0100_0193 }
+            let preferred = Int(hash % UInt32(fallbackAccents.count))
+            var best = preferred
+            var bestScore = -1.0
+            for step in 0..<fallbackAccents.count {
+                let index = (preferred + step) % fallbackAccents.count
+                let hue = fallbackAccents[index].hue ?? 0
+                let score = claimed.map { hueDistance($0, hue) }.min() ?? 180
+                if score > bestScore { best = index; bestScore = score }
+            }
+            result[id] = fallbackAccents[best]
+            if let h = fallbackAccents[best].hue { claimed.append(h) }
+        }
+        return result
     }
 
     /// Default outside a provider card (never a warning hue).
@@ -149,7 +179,7 @@ enum Palette {
         "opencode-zen-free": graphite,
     ]
     /// Distinct from crimson/amber so an accent never reads as a warning.
-    private static let fallbackAccents: [ProviderAccent] = [sky, plum, jade, indigo, violet, graphite]
+    private static let fallbackAccents: [ProviderAccent] = [sky, plum, jade, indigo, violet, lime]
 
     private static let terracotta = providerAccent(
         "terracotta", light: (0xC1, 0x5F, 0x3C), lightTip: (0xDE, 0x8B, 0x69), dark: (0xD9, 0x77, 0x57), darkTip: (0xF0, 0xA0, 0x80),
@@ -176,7 +206,30 @@ enum Palette {
         "graphite", light: (0x55, 0x5C, 0x66), lightTip: (0x7E, 0x85, 0x8F), dark: (0x82, 0x89, 0x93), darkTip: (0xB8, 0xBF, 0xC9),
         hcLight: (0x2D, 0x32, 0x38), hcDark: (0xD6, 0xDB, 0xE1))
 
+    /// Yellow-green, between the terracotta and jade hues and well clear of amber (~40°).
+    private static let lime = providerAccent(
+        "lime", light: (0x5E, 0x84, 0x12), lightTip: (0x8F, 0xB4, 0x3A), dark: (0x9B, 0xC5, 0x3D), darkTip: (0xC6, 0xE6, 0x7A),
+        hcLight: (0x40, 0x5C, 0x0C), hcDark: (0xDC, 0xF4, 0x9A))
+
     typealias RGB = (Int, Int, Int)
+
+    /// Hue in degrees of the light solid, or nil for a neutral (low chroma) colour that has no hue to keep apart.
+    private static func hue(of rgb: RGB) -> Double? {
+        let r = Double(rgb.0) / 255, g = Double(rgb.1) / 255, b = Double(rgb.2) / 255
+        let top = max(r, g, b), bottom = min(r, g, b), chroma = top - bottom
+        guard chroma >= 0.18 else { return nil }
+        var h: Double
+        if top == r { h = (g - b) / chroma } else if top == g { h = 2 + (b - r) / chroma } else { h = 4 + (r - g) / chroma }
+        h *= 60
+        return h < 0 ? h + 360 : h
+    }
+
+    /// Shortest distance between two hues on the colour wheel, in degrees (0...180).
+    private static func hueDistance(_ a: Double, _ b: Double) -> Double {
+        let d = abs(a - b).truncatingRemainder(dividingBy: 360)
+        return min(d, 360 - d)
+    }
+
     private static func providerAccent(_ name: String, light: RGB, lightTip: RGB, dark: RGB, darkTip: RGB,
                                        hcLight: RGB, hcDark: RGB) -> ProviderAccent {
         func c(_ v: RGB, _ a: Double = 1) -> RGBA { (v.0, v.1, v.2, a) }
@@ -186,7 +239,8 @@ enum Palette {
             solid: dynamic(light: c(light), dark: c(darkTip), hcLight: hcL, hcDark: hcD),
             fill: barFill(start: dynamic(light: c(light), dark: c(dark), hcLight: hcL, hcDark: hcD),
                           end: dynamic(light: c(lightTip), dark: c(darkTip), hcLight: hcL, hcDark: hcD)),
-            wash: dynamic(light: c(light, 0.10), dark: c(dark, 0.16), hcLight: c(light, 0), hcDark: c(dark, 0)))
+            wash: dynamic(light: c(light, 0.10), dark: c(dark, 0.16), hcLight: c(light, 0), hcDark: c(dark, 0)),
+            hue: hue(of: light))
     }
 
     /// Warning colours, solid (glyphs, dots). Amber · crimson.
@@ -250,4 +304,6 @@ struct ProviderAccent: @unchecked Sendable {
     var fill: LinearGradient
     /// Card top wash, fading to clear by mid-card. Clear under Increase Contrast.
     var wash: Color
+    /// Light-mode hue in degrees; nil for neutrals. Used to keep unknown providers apart.
+    var hue: Double?
 }

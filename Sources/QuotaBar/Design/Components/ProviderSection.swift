@@ -148,6 +148,7 @@ enum WindowText {
 /// Card: header, hero meters, then other usable accounts, folded nearly-empty group, problem accounts.
 struct ProviderSection: View {
     var provider: ProviderVM
+    var accent: ProviderAccent = Palette.neutralAccent
     @Binding var isExpanded: Bool
 
     var body: some View {
@@ -171,7 +172,7 @@ struct ProviderSection: View {
                 }
             }
         }
-        .environment(\.providerAccent, Palette.accent(forProvider: provider.id))
+        .environment(\.providerAccent, accent)
         .accessibilityElement(children: .contain)
     }
 }
