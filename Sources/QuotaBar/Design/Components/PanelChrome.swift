@@ -187,8 +187,8 @@ struct BoundedScroll<Content: View>: View {
         case .interactive:
             ScrollView(.vertical) {
                 content
-                    // MenuBarExtra extends native scrolling past its content bounds. Constrain the
-                    // document width explicitly so that extension cannot widen the provider cards.
+                    // The native scroll view can extend its document past the content bounds (seen
+                    // under MenuBarExtra). Constrain the document width so it cannot widen the cards.
                     .frame(width: Metric.panelWidth)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }

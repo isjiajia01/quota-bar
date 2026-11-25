@@ -77,7 +77,7 @@ struct Card<Content: View>: View {
 }
 
 /// No per-card blur: these static colour layers reveal the panel's single behind-window material.
-/// Accessibility uses the solid card token over PanelGlass's opaque fallback.
+/// Accessibility uses the solid card token over PanelBackdrop's opaque fallback.
 struct CardSurface: View {
     @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
     @Environment(\.colorSchemeContrast) private var contrast

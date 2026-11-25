@@ -21,6 +21,9 @@ enum Radius {
     /// Provider card (extend 2026-11-08).
     static let card: CGFloat = 10
     static let page: CGFloat = 10
+    /// Live panel outline (Liquid Glass and its fallbacks). Larger than the card radius so the
+    /// 12 pt-inset cards read as nested inside the panel's corner.
+    static let panel: CGFloat = 16
 }
 
 /// Fixed component metrics. Panel width/scroll cap are app choices, not OS limits.
@@ -49,6 +52,10 @@ enum Metric {
     static let skeletonWidths: [CGFloat] = [120, 150, 100]
     static let stateIcon: CGFloat = 24
     static let disabledOpacity: Double = 0.4
+    /// Gap between the status item's bottom edge and the panel's top edge.
+    static let panelMenuBarGap: CGFloat = 4
+    /// Minimum distance from the panel to the edges of the screen's visible frame.
+    static let panelScreenInset: CGFloat = 8
     /// State-page viewer window (dev tool, not the panel).
     static let galleryDefault = CGSize(width: 800, height: 720)
 }
@@ -99,6 +106,9 @@ enum Palette {
     static let panelMaterial: NSVisualEffectView.Material = .hudWindow
     /// A single contrast scrim over the window blur; still transmits underlying colour/structure.
     static let panelGlassTint = dynamic(light: (0xFF, 0xFF, 0xFF, 0.38), dark: (0x00, 0x00, 0x00, 0.50))
+    /// Liquid Glass tint (macOS 26+, `NSGlassEffectView.tintColor`). Lighter than the vibrancy scrim:
+    /// the regular glass style already adds its own legibility layer. Re-measure contrast natively.
+    static let panelLiquidTint = dynamic(light: (0xFF, 0xFF, 0xFF, 0.22), dark: (0x00, 0x00, 0x00, 0.28))
     static let cardGlassTint = dynamic(light: (0xF2, 0xF9, 0xF7, 0.30), dark: (0x12, 0x2C, 0x29, 0.30))
     /// Glass sheen: light catching the top of the pane, fading out by mid-height. Glass state only.
     static let cardSheenTop = dynamic(light: (0xFF, 0xFF, 0xFF, 0.55), dark: (0xFF, 0xFF, 0xFF, 0.13))

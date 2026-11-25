@@ -110,53 +110,150 @@ extension TransportIssue {
     }
 }
 
+/// When the store fetches (pure, so the cadence is testable without a clock).
+/// The status item shows no number, so a hidden panel only needs data that is fresh enough
+/// to open on: it polls slowly, and opening the panel refreshes at once when the data is old.
+struct RefreshPolicy: Sendable, Equatable {
+    /// Cadence while the panel is on screen.
+    var visible: Duration = .seconds(60)
+    /// Cadence while the panel is closed.
+    var hidden: Duration = .seconds(300)
+    /// Ceiling for the failure backoff (doubling from the current cadence).
+    var maxBackoff: Duration = .seconds(900)
+    /// Opening the panel refreshes immediately when the last attempt is older than this.
+    var staleOnOpen: Duration = .seconds(30)
+
+    static let standard = RefreshPolicy()
+
+    /// One fixed cadence (tests, dev runs): no visibility split, no backoff growth.
+    static func fixed(_ interval: Duration) -> RefreshPolicy {
+        RefreshPolicy(visible: interval, hidden: interval, maxBackoff: interval, staleOnOpen: interval)
+    }
+
+    /// Delay between attempts: the visibility cadence, doubled per consecutive failure, capped.
+    func delay(panelVisible: Bool, failures: Int) -> Duration {
+        let base = panelVisible ? visible : hidden
+        guard failures > 0 else { return base }
+        let factor = 1 << min(failures, 10)
+        let cap = max(base, maxBackoff)
+        return base * factor > cap ? cap : base * factor
+    }
+
+    /// Timer slack handed to the system so wake-ups coalesce with other work (10 % of the delay).
+    func tolerance(for delay: Duration) -> Duration { delay / 10 }
+}
+
+/// Why polling is paused. Polling resumes only when every reason has cleared.
+enum RefreshPause: Hashable, Sendable { case systemSleep, screensAsleep, sessionInactive }
+
 /// App-lifetime owner of data. One fetch in flight; a new refresh supersedes the old.
 /// The loop and the immediate refresh both go through `refresh()`, so Retry/⟳ never stacks work.
+/// Cadence follows `RefreshPolicy`: fast while the panel is open, slow while it is closed,
+/// backing off after failures, and paused while the Mac sleeps, the screens are off or the
+/// user session is switched out.
 @MainActor @Observable
 final class QuotaStore {
-    /// Best effort, not an exact schedule: App Nap and timer coalescing apply.
-    static let refreshInterval: TimeInterval = 60
-
     private(set) var state: PanelState = .loading
     private(set) var isRefreshing = false
     private var lastGood: PanelSnapshot?
     private var attempt: Task<Void, Never>?
-    private var loop: Task<Void, Never>?
-    private let source: any QuotaSource
+    @ObservationIgnored private var loop: Task<Void, Never>?
+    @ObservationIgnored private let source: any QuotaSource
+    @ObservationIgnored private let clock = ContinuousClock()
+    @ObservationIgnored private var policy: RefreshPolicy = .standard
+    @ObservationIgnored private var running = false
+    @ObservationIgnored private var lastAttempt: ContinuousClock.Instant?
+    @ObservationIgnored private(set) var consecutiveFailures = 0
+    @ObservationIgnored private(set) var isPanelVisible = false
+    @ObservationIgnored private var pauses: Set<RefreshPause> = []
 
     init(source: any QuotaSource) { self.source = source }
 
-    /// Refreshes now, then every `interval` until `stopAutoRefresh()`. Idempotent.
-    func startAutoRefresh(interval: TimeInterval = QuotaStore.refreshInterval) {
-        guard loop == nil else { return }
+    /// Refreshes now, then on the policy's cadence until `stopAutoRefresh()`. Idempotent.
+    func startAutoRefresh(policy: RefreshPolicy = .standard) {
+        guard !running else { return }
+        self.policy = policy
+        running = true
+        restartLoop()
+    }
+
+    /// Fixed cadence (tests and dev runs).
+    func startAutoRefresh(interval: TimeInterval) {
+        startAutoRefresh(policy: .fixed(.milliseconds(Int(interval * 1000))))
+    }
+
+    func stopAutoRefresh() {
+        running = false
+        loop?.cancel()
+        loop = nil
+    }
+
+    /// The panel came on screen: refresh at once if the data is old, then poll at the visible cadence.
+    func panelDidOpen() {
+        isPanelVisible = true
+        if pauses.isEmpty, lastGood == nil || age(atLeast: policy.staleOnOpen) { refresh() }
+        restartLoop()
+    }
+
+    /// The panel left the screen: fall back to the hidden cadence (no immediate fetch).
+    func panelDidClose() {
+        isPanelVisible = false
+        restartLoop()
+    }
+
+    /// Pauses or resumes polling for one reason. Resuming fetches at once only if an attempt is due.
+    func setPaused(_ reason: RefreshPause, _ paused: Bool) {
+        let wasPaused = !pauses.isEmpty
+        if paused { pauses.insert(reason) } else { pauses.remove(reason) }
+        if wasPaused != !pauses.isEmpty { restartLoop() }
+    }
+
+    /// The loop sleeps until the next attempt is due, measured from the last attempt of any kind,
+    /// so a manual ⟳ or an open-refresh postpones the timer instead of adding a fetch.
+    private func restartLoop() {
+        loop?.cancel()
+        loop = nil
+        guard running, pauses.isEmpty else { return }
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
+                let wait = self.timeUntilDue()
+                if wait > .zero {
+                    try? await Task.sleep(for: wait, tolerance: self.policy.tolerance(for: wait), clock: .continuous)
+                    continue  // re-check: a manual refresh may have moved the due time
+                }
                 await self.refresh().value
-                if Task.isCancelled { return }
-                try? await Task.sleep(for: .seconds(interval))
             }
         }
     }
 
-    func stopAutoRefresh() {
-        loop?.cancel()
-        loop = nil
+    private func timeUntilDue() -> Duration {
+        guard let lastAttempt else { return .zero }
+        let delay = policy.delay(panelVisible: isPanelVisible, failures: consecutiveFailures)
+        return delay - (clock.now - lastAttempt)
+    }
+
+    private func age(atLeast limit: Duration) -> Bool {
+        guard let lastAttempt else { return true }
+        return clock.now - lastAttempt >= limit
     }
 
     @discardableResult
     func refresh() -> Task<Void, Never> {
         attempt?.cancel()
         isRefreshing = true
+        lastAttempt = clock.now
         let task = Task { [source] in
             do {
                 let payload = try await source.fetch()
                 try Task.checkCancellation()
+                consecutiveFailures = 0
                 apply(payload)
             } catch {
                 // URLSession reports its own cancellation as `URLError(.cancelled)`, so the
                 // task flag — not the error type — decides whether this attempt still counts.
                 if Task.isCancelled { return }  // superseded; the newer attempt owns `isRefreshing`
+                consecutiveFailures += 1
                 fail(TransportIssue(error))
             }
             isRefreshing = false

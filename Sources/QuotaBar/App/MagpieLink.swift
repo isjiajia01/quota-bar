@@ -9,9 +9,8 @@ enum MagpieLink {
 }
 
 /// The impure edge: opens a page in Safari, or in the user's default browser when Safari is
-/// not installed. Both paths activate the browser, which deactivates QuotaBar and lets the
-/// system dismiss its transient panel (docs/PLATFORM_CONSTRAINTS.md › focus/dismissal:
-/// `MenuBarExtra` exposes no public dismiss, so nothing here probes its window).
+/// not installed. Both paths activate the browser. PanelController closes the panel itself
+/// before calling this, so dismissal no longer depends on QuotaBar losing focus.
 @MainActor
 enum BrowserOpener {
     static let safariBundleIdentifier = "com.apple.Safari"
