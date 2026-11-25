@@ -16,7 +16,7 @@ enum TransportIssue: Sendable, Equatable {
 
     var detail: String {
         switch self {
-        case .unreachable: "Magpie isn't reachable at oracle-fra.tail318c35.ts.net."
+        case .unreachable: "Magpie isn't reachable at llm.isjia.page."
         case .timedOut: "Magpie didn't answer in time."
         case .http(let code): "Magpie answered HTTP \(code)."
         case .malformed: "Magpie sent data QuotaBar can't read."

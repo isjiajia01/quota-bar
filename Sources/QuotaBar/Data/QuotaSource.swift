@@ -31,10 +31,10 @@ struct FixtureQuotaSource: QuotaSource {
     }
 }
 
-/// The Magpie endpoint on the Tailscale address; the gateway authenticates a bearer token.
-/// No SSH tunnel: one HTTP call, no local forward to keep alive.
+/// The Magpie endpoint behind the public HTTPS gateway (Caddy on llm.isjia.page → :3425);
+/// Magpie authenticates the bearer token. No Tailscale or tunnel: works with any VPN on.
 struct LiveQuotaSource: QuotaSource {
-    static let endpoint = URL(string: "http://oracle-fra.tail318c35.ts.net:3425/v1/magpie/quotas")!
+    static let endpoint = URL(string: "https://llm.isjia.page/v1/magpie/quotas")!
     /// Bound on one attempt.
     static let timeout: TimeInterval = 8
 

@@ -18,9 +18,8 @@ mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "$bin" "$app/Contents/MacOS/QuotaBar"
 printf 'APPL????' > "$app/Contents/PkgInfo"
 
-# LSUIElement: agent app, no Dock icon. ATS: exception for the loopback tunnel only —
-# no NSAllowsArbitraryLoads. One exception: the Tailscale MagicDNS name of the gateway.
-# No SSH tunnel: the app calls the gateway directly over Tailscale.
+# LSUIElement: agent app, no Dock icon. ATS: default HTTPS rules for the gateway;
+# NSAllowsLocalNetworking only (loopback test server). No NSAllowsArbitraryLoads.
 cat > "$app/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -54,16 +53,6 @@ cat > "$app/Contents/Info.plist" <<PLIST
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
-		<key>NSExceptionDomains</key>
-		<dict>
-			<key>oracle-fra.tail318c35.ts.net</key>
-			<dict>
-				<key>NSExceptionAllowsInsecureHTTPLoads</key>
-				<true/>
-				<key>NSIncludesSubdomains</key>
-				<false/>
-			</dict>
-		</dict>
 	</dict>
 </dict>
 </plist>

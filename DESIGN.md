@@ -11,7 +11,7 @@ Status: **frozen**. New tokens or components only through designer `extend`.
 - View state: `Design/PanelState.swift`. Presentation (pure mapping and rules): `Design/Presentation.swift`.
 - State pages: `Design/States/StatePages.swift`. Guards: `scripts/lint-tokens.sh` and `Tests/QuotaBarTests/*`.
 - Run: `swift run QuotaBar --state-pages` (every state, dark + light; `--state=<name>` for one). `--fixture` runs the
-  menu-bar app on sample data; no flag uses the live `http://oracle-fra.tail318c35.ts.net:3425/v1/magpie/quotas`.
+  menu-bar app on sample data; no flag uses the live `https://llm.isjia.page/v1/magpie/quotas`.
 - Snapshots: `QUOTABAR_SNAPSHOT_DIR=<dir> swift test` writes PNGs. Use a scratch directory, never the repo.
 
 ## Tokens (Tokens.swift)
